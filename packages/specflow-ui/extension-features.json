@@ -1,0 +1,6 @@
+[
+  {"id": "F-8", "name": "Feature Detail Modal", "description": "When clicking a feature row, show a modal/page with rendered spec.md, plan.md, and tasks.md content. Use markdown rendering.", "dependencies": ["F-6"], "priority": 1},
+  {"id": "F-9", "name": "New Project Form", "description": "Add 'New Project' button to landing page that opens a form to enter project name and description.", "dependencies": ["F-4"], "priority": 2},
+  {"id": "F-10", "name": "Interview UI", "description": "Interactive interview questionnaire that walks through the 8 phases, collecting answers. Renders questions dynamically, stores responses.", "dependencies": ["F-9"], "priority": 3},
+  {"id": "F-11", "name": "Project Generation", "description": "After interview, generate app-context.md and features.json, then call specflow init to create the project. Show progress and redirect to new project.", "dependencies": ["F-10"], "priority": 4}
+]

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+bun.lock
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Compiled binary
+specflow
+
+# Test artifacts
+.test-*

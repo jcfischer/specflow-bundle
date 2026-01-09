@@ -1,0 +1,72 @@
+/**
+ * SpecFlow UI Styles
+ *
+ * Phase Indicator Component Styles
+ * Colors:
+ * - Green (#22c55e): Complete phase
+ * - Yellow (#eab308): Current/active phase
+ * - Gray (#9ca3af): Pending/future phase
+ */
+
+/* Phase Indicator Container */
+.phase-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+}
+
+/* Individual Phase Step */
+.phase-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Phase Dot (colored circle) */
+.phase-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Phase Label Text */
+.phase-label {
+  font-weight: 500;
+}
+
+/* Arrow Between Steps */
+.phase-arrow {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+/* ================================
+   Phase States
+   ================================ */
+
+/* State: Complete (green) */
+.phase-complete .phase-dot {
+  background-color: #22c55e;
+}
+.phase-complete .phase-label {
+  color: #22c55e;
+}
+
+/* State: Current (yellow) */
+.phase-current .phase-dot {
+  background-color: #eab308;
+}
+.phase-current .phase-label {
+  color: #eab308;
+}
+
+/* State: Pending (gray) */
+.phase-pending .phase-dot {
+  background-color: #9ca3af;
+}
+.phase-pending .phase-label {
+  color: #9ca3af;
+}

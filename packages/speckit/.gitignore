@@ -1,0 +1,7 @@
+node_modules/
+bun.lock
+*.db
+
+# Test fixtures
+tests/fixtures/temp/
+tests/fixtures/cli-temp/

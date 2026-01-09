@@ -1,0 +1,3 @@
+[submodule "packages/pai-deps"]
+	path = packages/pai-deps
+	url = https://github.com/jcfischer/pai-deps.git

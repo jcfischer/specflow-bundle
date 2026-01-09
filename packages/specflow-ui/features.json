@@ -1,0 +1,61 @@
+[
+  {
+    "id": "F-1",
+    "name": "Project Scanner",
+    "description": "Scan ~/work/ for directories containing features.db. Return list of project paths with basic metadata (name from directory, db path). Handle missing/unreadable databases gracefully with warning flag.",
+    "dependencies": [],
+    "priority": 1
+  },
+  {
+    "id": "F-2",
+    "name": "Database Reader",
+    "description": "Read SpecFlow SQLite database to extract features list and stats. Import from SpecFlow database module or implement compatible read-only queries. Return typed Feature[] and FeatureStats.",
+    "dependencies": [
+      "F-1"
+    ],
+    "priority": 2
+  },
+  {
+    "id": "F-3",
+    "name": "HTTP Server",
+    "description": "Bun native HTTP server with routes: GET / (landing), GET /project/:name (detail), GET /api/projects (JSON), GET /api/project/:name (JSON). Serve static assets. Handle 404s. Print localhost URL on start.",
+    "dependencies": [],
+    "priority": 3
+  },
+  {
+    "id": "F-4",
+    "name": "Landing Page",
+    "description": "HTML page showing project cards in a grid. Each card displays: project name, progress bar, X/Y features complete, last activity timestamp. Cards link to project detail. Include refresh button.",
+    "dependencies": [
+      "F-2",
+      "F-3"
+    ],
+    "priority": 4
+  },
+  {
+    "id": "F-5",
+    "name": "Phase Visualization Component",
+    "description": "Reusable HTML/CSS component showing 4-step phase progress: SPECIFY -> PLAN -> TASKS -> IMPLEMENT. Steps are gray (not reached), yellow (current), or green (complete). Self-explanatory for demo viewers.",
+    "dependencies": [],
+    "priority": 5
+  },
+  {
+    "id": "F-6",
+    "name": "Project Detail Page",
+    "description": "HTML page showing feature table for a project. Columns: ID, Name, Phase (using visualization component), Status (color-coded badge). Back link to landing. Refresh button. Handle unknown project gracefully.",
+    "dependencies": [
+      "F-4",
+      "F-5"
+    ],
+    "priority": 6
+  },
+  {
+    "id": "F-7",
+    "name": "CLI Command",
+    "description": "Add 'specflow ui' command to SpecFlow CLI. Options: --port (default 3000). Starts server, prints URL. Standard error if port in use. Add --help documentation.",
+    "dependencies": [
+      "F-6"
+    ],
+    "priority": 7
+  }
+]
