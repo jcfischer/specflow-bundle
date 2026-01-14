@@ -78,14 +78,11 @@ bun run install.ts --update
 
 ## What's Included
 
-| # | Package | Purpose | Status |
-|---|---------|---------|--------|
-| 1 | **SpecFlow** | Unified spec-driven workflow + CLI | **Primary** |
-| 2 | ~~SpecKit~~ | Individual spec workflow | **Merged into SpecFlow** |
-| 3 | **specflow-ui** | Progress dashboard | Active |
-| 4 | **pai-deps** | Dependency tracking | Active |
-
-> **Note:** As of January 2026, SpecKit has been unified into SpecFlow. All SpecKit functionality is now available through the `specflow` CLI.
+| # | Package | Purpose |
+|---|---------|---------|
+| 1 | **SpecFlow** | Unified spec-driven workflow + CLI |
+| 2 | **specflow-ui** | Progress dashboard |
+| 3 | **pai-deps** | Dependency tracking |
 
 ---
 
