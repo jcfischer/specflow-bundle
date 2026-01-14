@@ -2,6 +2,58 @@
 
 **Spec-Driven Development for AI Infrastructure**
 
+---
+
+## Why SpecFlow?
+
+### The Promise vs The Reality
+
+AI coding assistants promise "10x developer productivity" — just describe what you want and watch the code appear. The reality? A frustrating cycle:
+
+![Promise vs Reality](docs/problem-promise-vs-reality.png)
+
+**Copy → Paste → Fix → Repeat.** Hallucinated APIs. Lost context. Code that works once and breaks mysteriously. Every session starts from zero.
+
+### The Insight
+
+> **The AI is the same. The architecture around it isn't.**
+
+The breakthrough isn't a better model — it's better scaffolding. When you give AI agents structure, constraints, and verification gates, they stop hallucinating and start engineering.
+
+### Code is a Liability
+
+Cory Doctorow articulated what experienced developers know: **code is a liability, not an asset**. Every line requires maintenance. Every feature adds complexity. Probabilities are multiplicative — chain enough unreliable components and your system *will* fail.
+
+SpecFlow embraces this truth. Instead of letting AI generate code freely, we force it through engineering discipline:
+
+![SpecFlow Quality Gates](docs/specflow-quality-gates.png)
+
+### The Four-Phase Workflow
+
+```
+SPECIFY → PLAN → TASKS → IMPLEMENT
+```
+
+| Phase | What Happens | Gate |
+|-------|--------------|------|
+| **SPECIFY** | Interview-driven requirements. What are we building? Why? | Human approves spec |
+| **PLAN** | Architecture decisions, data models, failure modes | Human approves design |
+| **TASKS** | Break work into reviewable units with dependencies | Human approves breakdown |
+| **IMPLEMENT** | TDD execution with verification | Tests pass, contracts verified |
+
+**Each gate requires human approval.** The AI cannot skip ahead. No code gets written until the spec, plan, and tasks are complete.
+
+### The Result
+
+- **No hallucinated features** — everything traces back to approved specs
+- **No forgotten context** — SQLite database tracks all features and progress
+- **No mysterious breakage** — dependency tracking catches cascading failures
+- **Resumable anytime** — interrupt and pick up exactly where you left off
+
+> *The AI does the work. You provide direction and corrections.*
+
+---
+
 > **FOR AI AGENTS:** You are installing the SpecFlow Bundle into a PAI installation.
 > Run the install wizard OR follow the manual installation steps below.
 > Each package must be FULLY installed with ALL files. No shortcuts.
@@ -288,7 +340,7 @@ This bundle is **free and open source** under the MIT license.
 
 If SpecFlow Bundle helps you build better AI infrastructure, consider supporting continued development:
 
-- [Support on InVisible Store](https://invisible.ch/support.html)
+- [Support on InVisible Store](https://projects.invisible.ch/support.html)
 - [GitHub Sponsors](https://github.com/sponsors/jcfischer)
 
 ---
@@ -296,8 +348,8 @@ If SpecFlow Bundle helps you build better AI infrastructure, consider supporting
 ## Links
 
 - [InVisible GmbH](https://invisible.ch) - Company behind SpecFlow Bundle
-- [Product Page](https://invisible.ch/specflow/) - Full documentation
-- [Supertag CLI](https://invisible.ch/supertag/) - Our Tana CLI tool
+- [Product Page](https://projects.invisible.ch/specflow/) - Full documentation
+- [Supertag CLI](https://projects.invisible.ch/supertag-cli/) - Our Tana CLI tool
 - [pai-deps](https://github.com/jcfischer/pai-deps) - Dependency management
 
 ---
