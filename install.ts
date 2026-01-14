@@ -2,7 +2,8 @@
 /**
  * SpecFlow Bundle Installer
  *
- * Installs SpecKit, SpecFlow, specflow-ui, and pai-deps into a PAI installation.
+ * Installs SpecFlow, specflow-ui, and pai-deps into a PAI installation.
+ * Note: SpecKit has been unified into SpecFlow as of January 2026.
  *
  * Usage:
  *   bun run install.ts           # Fresh install
@@ -114,32 +115,27 @@ async function installSkills() {
 
   ensureDir(SKILLS_DIR);
 
-  // Install SpecKit
-  const specKitSrc = join(PACKAGES_DIR, "speckit");
-  const specKitDest = join(SKILLS_DIR, "SpecKit");
-  copyDir(specKitSrc, specKitDest, "SpecKit");
-
-  // Install SpecFlow
+  // Install SpecFlow (unified with SpecKit as of January 2026)
   const specFlowSrc = join(PACKAGES_DIR, "specflow");
   const specFlowDest = join(SKILLS_DIR, "SpecFlow");
   copyDir(specFlowSrc, specFlowDest, "SpecFlow");
 
   // Install dependencies
-  console.log("\n  Installing SpecKit dependencies...");
-  const specKitInstall = Bun.spawn(["bun", "install"], {
-    cwd: specKitDest,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  await specKitInstall.exited;
-
-  console.log("  Installing SpecFlow dependencies...");
+  console.log("\n  Installing SpecFlow dependencies...");
   const specFlowInstall = Bun.spawn(["bun", "install"], {
     cwd: specFlowDest,
     stdout: "inherit",
     stderr: "inherit",
   });
   await specFlowInstall.exited;
+
+  // Check for legacy SpecKit and offer to remove it
+  const legacySpecKit = join(SKILLS_DIR, "SpecKit");
+  if (existsSync(legacySpecKit)) {
+    console.log("\n  Note: Legacy SpecKit installation found.");
+    console.log("  SpecKit has been unified into SpecFlow.");
+    console.log("  You can safely remove ~/.claude/skills/SpecKit");
+  }
 }
 
 async function installSpecFlowUI() {
@@ -205,8 +201,10 @@ async function verifyInstallation() {
   printStep(4, 4, "Verifying Installation");
 
   const checks = [
-    { name: "SpecKit skill", path: join(SKILLS_DIR, "SpecKit", "SKILL.md") },
     { name: "SpecFlow skill", path: join(SKILLS_DIR, "SpecFlow", "SKILL.md") },
+    { name: "SpecFlow commands", path: join(SKILLS_DIR, "SpecFlow", "src", "commands") },
+    { name: "SpecFlow templates", path: join(SKILLS_DIR, "SpecFlow", "templates") },
+    { name: "SpecFlow evals", path: join(SKILLS_DIR, "SpecFlow", "evals") },
     { name: "specflow-ui", path: join(SPECFLOW_CONFIG_DIR, "ui", "src", "server.ts") },
     { name: "pai-deps", path: join(SPECFLOW_CONFIG_DIR, "pai-deps", "src", "index.ts") },
     { name: "specflow-ui launcher", path: join(HOME, ".local", "bin", "specflow-ui") },
@@ -232,8 +230,7 @@ async function main() {
   printHeader("SpecFlow Bundle Installer");
 
   console.log("This installer will set up:");
-  console.log("  • SpecKit      - Spec-driven development skill");
-  console.log("  • SpecFlow     - CLI orchestration skill");
+  console.log("  • SpecFlow     - Unified spec-driven development (includes SpecKit)");
   console.log("  • specflow-ui  - Progress dashboard");
   console.log("  • pai-deps     - Dependency tracking");
 
@@ -242,8 +239,10 @@ async function main() {
   console.log("\nDetected environment:");
   console.log(`  PAI Installation: ${detected.hasPAI ? "Yes" : "No"}`);
   console.log(`  Claude Code: ${detected.hasClaudeDir ? "Yes" : "No"}`);
-  console.log(`  Existing SpecKit: ${detected.existingSpecKit ? "Yes" : "No"}`);
   console.log(`  Existing SpecFlow: ${detected.existingSpecFlow ? "Yes" : "No"}`);
+  if (detected.existingSpecKit) {
+    console.log(`  Legacy SpecKit: Yes (will be superseded)`);
+  }
 
   if (!detected.hasClaudeDir) {
     console.log("\n⚠️  Claude Code directory not found at ~/.claude");
@@ -252,7 +251,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (detected.existingSpecKit || detected.existingSpecFlow) {
+  if (detected.existingSpecFlow) {
     if (!UPDATE_MODE) {
       console.log("\n⚠️  Existing SpecFlow installation detected.");
       console.log("   Run with --update to overwrite existing files.");
@@ -291,18 +290,19 @@ async function main() {
   console.log("1. Ensure ~/.local/bin is in your PATH:");
   console.log('   export PATH="$HOME/.local/bin:$PATH"');
   console.log("");
-  console.log("2. In Claude Code, use the SpecKit commands:");
-  console.log("   /speckit.specify  - Start a new feature spec");
-  console.log("   /speckit.plan     - Create implementation plan");
-  console.log("   /speckit.tasks    - Generate task breakdown");
-  console.log("   /speckit.implement - Execute with TDD");
-  console.log("");
-  console.log("3. Use SpecFlow CLI:");
+  console.log("2. Use SpecFlow CLI (unified commands):");
   console.log("   specflow init <project>  - Initialize a project");
+  console.log("   specflow add <feature>   - Add a feature");
+  console.log("   specflow specify F-N     - Create specification");
+  console.log("   specflow plan F-N        - Create implementation plan");
+  console.log("   specflow tasks F-N       - Generate task breakdown");
+  console.log("   specflow implement F-N   - Execute with TDD");
+  console.log("   specflow complete F-N    - Mark feature complete");
+  console.log("   specflow eval run        - Run quality evaluations");
   console.log("   specflow status          - Check feature progress");
   console.log("   specflow ui              - Launch dashboard");
   console.log("");
-  console.log("4. Use pai-deps for dependency tracking:");
+  console.log("3. Use pai-deps for dependency tracking:");
   console.log("   pai-deps health          - Show ecosystem health");
   console.log("   pai-deps verify          - Verify contracts");
   console.log("");
