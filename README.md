@@ -22,7 +22,7 @@ The breakthrough isn't a better model — it's better scaffolding. When you give
 
 ### Code is a Liability
 
-Cory Doctorow articulated what experienced developers know: **code is a liability, not an asset**. Every line requires maintenance. Every feature adds complexity. Probabilities are multiplicative — chain enough unreliable components and your system *will* fail.
+[Cory Doctorow articulated](https://pluralistic.net/2026/01/06/1000x-liability/) what experienced developers know: **code is a liability, not an asset**. Every line requires maintenance. Every feature adds complexity. Probabilities are multiplicative — chain enough unreliable components and your system *will* fail.
 
 SpecFlow embraces this truth. Instead of letting AI generate code freely, we force it through engineering discipline:
 
