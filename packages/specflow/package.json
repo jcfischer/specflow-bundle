@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "commander": "^12.1.0"
+    "@anthropic-ai/sdk": "^0.71.2",
+    "commander": "^12.1.0",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -81,7 +81,7 @@ export async function nextCommand(options: NextCommandOptions): Promise<void> {
           }, null, 2));
         } else {
           console.log("No features ready for implementation.");
-          console.log(`\nFeature ${needsPhases.id} [P${needsPhases.priority}] needs SpecKit phases first:`);
+          console.log(`\nFeature ${needsPhases.id} [P${needsPhases.priority}] needs SpecFlow phases first:`);
           for (const phase of neededPhases) {
             console.log(`  specflow ${phase} ${needsPhases.id}`);
           }

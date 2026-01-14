@@ -150,14 +150,14 @@ export async function implementCommand(
 
         if (needsPhases) {
           console.error("═".repeat(60));
-          console.error("NO FEATURES READY - SpecKit phases needed first");
+          console.error("NO FEATURES READY - SpecFlow phases needed first");
           console.error("═".repeat(60));
           console.error("");
           console.error(`Next feature by priority: ${needsPhases.id} - ${needsPhases.name}`);
           console.error(`Priority: ${needsPhases.priority}`);
           console.error(`Current phase: ${needsPhases.phase || "none"}`);
           console.error("");
-          console.error("Complete SpecKit phases first:");
+          console.error("Complete SpecFlow phases first:");
           if (needsPhases.phase === "none") {
             console.error(`  specflow specify ${needsPhases.id}`);
           }

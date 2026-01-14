@@ -1,0 +1,124 @@
+# Spec Quality Rubric - Custom for Jens-Christian
+# Based on interview: acceptance criteria is #1 pain point
+# Weights sum to 1.0 | Pass threshold: 80%
+
+name: spec-quality
+passThreshold: 0.8
+
+criteria:
+  - name: Acceptance Criteria
+    weight: 0.40
+    description: |
+      Clear, testable acceptance criteria that define "done".
+      Must include:
+      - Testable assertions (can write a test that passes/fails)
+      - User-observable outcomes (what user sees/experiences)
+      - Given/When/Then format for scenarios
+
+      Red flags:
+      - Vague terms like "fast", "user-friendly", "seamless", "intuitive"
+      - No concrete success conditions
+      - Can't determine when feature is complete
+    examples:
+      good: |
+        ## Acceptance Criteria
+        ### AC-1: Successful Login
+        - Given a user with valid magic link
+        - When they click the link within 15 minutes
+        - Then they are redirected to dashboard
+        - And a session cookie is set (httpOnly, secure, 7-day expiry)
+        - And login event is logged with timestamp and IP
+
+        ### AC-2: Expired Link
+        - Given a magic link older than 15 minutes
+        - When user clicks it
+        - Then they see "Link expired" message
+        - And are offered option to request new link
+      bad: |
+        ## Acceptance Criteria
+        - Login should work smoothly
+        - User experience should be seamless
+        - Fast authentication
+
+  - name: Scope Definition
+    weight: 0.25
+    description: |
+      Explicit boundaries prevent scope creep and clarify dependencies.
+      Must include:
+      - In scope: what this feature covers
+      - Out of scope: what it explicitly does NOT cover
+      - Dependencies: what must exist first (other features, external services)
+      - Assumptions: conditions assumed to be true
+    examples:
+      good: |
+        ## Scope
+        **In scope:**
+        - Magic link generation and validation
+        - Email delivery via Resend
+        - Session creation and management
+
+        **Out of scope:**
+        - Password-based auth (not planned)
+        - OAuth/social login (F-12)
+        - 2FA (future consideration)
+
+        ## Dependencies
+        - Resend API configured (EMAIL_API_KEY)
+        - Database with users table
+        - F-1 project setup complete
+      bad: |
+        ## Scope
+        Authentication stuff.
+
+  - name: Error Handling
+    weight: 0.20
+    description: |
+      Edge cases and failure scenarios must be defined, not left to implementation.
+      Must include:
+      - Error states and how to handle them
+      - Edge cases (empty, null, max limits, concurrent access)
+      - Failure recovery (retry logic, fallbacks)
+      - User-facing error messages
+    examples:
+      good: |
+        ## Error Handling
+        | Scenario | Response | User Message |
+        |----------|----------|--------------|
+        | Invalid email format | 400 | "Please enter a valid email" |
+        | Email not found | 200 (security) | "If account exists, check email" |
+        | Rate limit (5/hour) | 429 | "Too many attempts. Try in 1 hour" |
+        | Resend API down | 503 + retry | "Email delayed. Try again shortly" |
+        | Expired link | 410 | "Link expired. Request new one" |
+
+        ## Edge Cases
+        - Multiple tabs: only most recent link valid
+        - Already logged in: redirect to dashboard
+        - Email in spam: include "check spam" hint
+      bad: |
+        Handle errors appropriately.
+
+  - name: Technical Clarity
+    weight: 0.15
+    description: |
+      Technical constraints and non-functional requirements are specified.
+      Must include:
+      - Performance requirements (response times, limits)
+      - Security considerations
+      - Accessibility requirements if applicable
+      - Integration points and API contracts
+
+      No vague terms - everything should be measurable.
+    examples:
+      good: |
+        ## Non-Functional Requirements
+        - NFR-1: Magic link generation < 500ms p95
+        - NFR-2: Email delivered within 30 seconds (Resend SLA)
+        - NFR-3: Links are cryptographically random (32 bytes, base64url)
+        - NFR-4: Rate limit: 5 requests per email per hour
+
+        ## Technical Constraints
+        - Must use existing Drizzle schema
+        - Tokens stored hashed (SHA-256)
+        - Compatible with Edge runtime (no Node-only deps)
+      bad: |
+        Should be fast and secure.

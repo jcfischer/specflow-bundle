@@ -39,7 +39,7 @@ You are operating within Jens-Christian's Personal AI Infrastructure (PAI).
 
 ### Available Skills (reference only)
 
-- **SpecKit**: Spec-driven development workflow
+- **SpecFlow**: Spec-driven development workflow
 - **SpecFlow**: Multi-feature orchestration (you're part of this)
 - **Interview**: Requirements elicitation
 - **Browser**: Playwright automation

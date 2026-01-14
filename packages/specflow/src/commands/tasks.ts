@@ -1,6 +1,6 @@
 /**
  * Tasks Command
- * Run SpecKit TASKS phase for a feature
+ * Run SpecFlow TASKS phase for a feature
  */
 
 import { join } from "path";
@@ -74,7 +74,7 @@ export async function tasksCommand(
     console.log(`\n📝 Starting TASKS phase for: ${feature.id} - ${feature.name}\n`);
 
     if (options.dryRun) {
-      console.log("[DRY RUN] Would invoke SpecKit tasks for this feature");
+      console.log("[DRY RUN] Would invoke SpecFlow tasks for this feature");
       return;
     }
 
@@ -87,7 +87,7 @@ export async function tasksCommand(
 
     updateFeaturePhase(featureId, "tasks");
 
-    console.log("Invoking Claude with SpecKit tasks workflow...\n");
+    console.log("Invoking Claude with SpecFlow tasks workflow...\n");
     console.log("─".repeat(60));
 
     const result = await runClaude(prompt, projectPath);
@@ -113,7 +113,7 @@ export async function tasksCommand(
 }
 
 function buildTasksPrompt(feature: Feature, specContent: string, planContent: string): string {
-  return `You are running SpecKit's TASKS phase for a feature.
+  return `You are running SpecFlow's TASKS phase for a feature.
 
 ## Feature
 

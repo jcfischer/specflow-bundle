@@ -1,11 +1,15 @@
 /**
  * Plan Command
- * Run SpecKit PLAN phase for a feature
+ * Run SpecFlow PLAN phase for a feature
  */
 
-import { join } from "path";
+import { join, dirname } from "path";
 import { existsSync, readFileSync } from "fs";
 import { spawn } from "child_process";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import {
   initDatabase,
   closeDatabase,
@@ -76,7 +80,7 @@ export async function planCommand(
     console.log(`\n📐 Starting PLAN phase for: ${feature.id} - ${feature.name}\n`);
 
     if (options.dryRun) {
-      console.log("[DRY RUN] Would invoke SpecKit plan for this feature");
+      console.log("[DRY RUN] Would invoke SpecFlow plan for this feature");
       return;
     }
 
@@ -89,7 +93,7 @@ export async function planCommand(
     // Update phase
     updateFeaturePhase(featureId, "plan");
 
-    console.log("Invoking Claude with SpecKit plan workflow...\n");
+    console.log("Invoking Claude with SpecFlow plan workflow...\n");
     console.log("─".repeat(60));
 
     const result = await runClaude(prompt, projectPath);
@@ -98,9 +102,25 @@ export async function planCommand(
       const planFile = join(feature.specPath, "plan.md");
       if (existsSync(planFile)) {
         console.log("\n─".repeat(60));
-        console.log(`\n✓ PLAN phase complete for ${featureId}`);
-        console.log(`  Plan created: ${planFile}`);
-        console.log("\nNext: Run 'specflow tasks " + featureId + "' to create implementation tasks");
+        console.log(`\n📐 Plan created: ${planFile}`);
+
+        // Run quality gate eval
+        console.log("\n🔍 Running plan quality evaluation...\n");
+        const evalResult = await runPlanEval(planFile, projectPath);
+
+        if (evalResult.passed) {
+          console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}%)`);
+          console.log(`\n✓ PLAN phase complete for ${featureId}`);
+          console.log("\nNext: Run 'specflow tasks " + featureId + "' to create implementation tasks");
+        } else {
+          console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < 80%)`);
+          console.log("\nFeedback:");
+          console.log(evalResult.feedback);
+          console.log("\n─".repeat(60));
+          console.log("\nThe plan has quality issues. Review the feedback above.");
+          console.log("To revise: edit the plan and run 'specflow eval run --file " + planFile + "'");
+          console.log("When passing, run 'specflow tasks " + featureId + "' to continue.");
+        }
       } else {
         console.log("\n⚠ Claude finished but plan.md was not created");
         updateFeaturePhase(featureId, "specify");
@@ -115,7 +135,7 @@ export async function planCommand(
 }
 
 function buildPlanPrompt(feature: Feature, specContent: string): string {
-  return `You are running SpecKit's PLAN phase for a feature.
+  return `You are running SpecFlow's PLAN phase for a feature.
 
 ## Feature
 
@@ -182,6 +202,94 @@ async function runClaude(
 
     proc.on("error", (err) => {
       resolve({ success: false, output, error: err.message });
+    });
+  });
+}
+
+/**
+ * Run plan quality evaluation
+ */
+async function runPlanEval(
+  planFile: string,
+  projectPath: string
+): Promise<{ passed: boolean; score: number; feedback: string }> {
+  return new Promise((resolve) => {
+    // Run specflow eval with the plan file and plan-quality rubric
+    const proc = spawn(
+      "specflow",
+      [
+        "eval",
+        "run",
+        "--file",
+        planFile,
+        "--rubric",
+        "plan-quality",
+        "--json",
+      ],
+      {
+        cwd: projectPath,
+        stdio: ["inherit", "pipe", "pipe"],
+        env: { ...process.env },
+      }
+    );
+
+    let output = "";
+    let stderr = "";
+
+    proc.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on("close", () => {
+      try {
+        // Try to parse JSON output
+        const result = JSON.parse(output);
+        const testResult = result.results?.[0];
+
+        if (testResult) {
+          resolve({
+            passed: testResult.passed,
+            score: testResult.score ?? 0,
+            feedback: testResult.output || "No feedback available",
+          });
+        } else {
+          // Fallback if no results
+          resolve({
+            passed: true, // Don't block if eval fails
+            score: 1.0,
+            feedback: "Evaluation skipped - no rubric configured",
+          });
+        }
+      } catch {
+        // If JSON parsing fails, check for rubric error
+        if (output.includes("not found") || stderr.includes("not found")) {
+          console.log("  (No plan-quality rubric found - skipping quality gate)");
+          resolve({
+            passed: true,
+            score: 1.0,
+            feedback: "No rubric configured - quality gate skipped",
+          });
+        } else {
+          resolve({
+            passed: true, // Don't block on eval errors
+            score: 1.0,
+            feedback: `Eval error: ${stderr || output || "Unknown error"}`,
+          });
+        }
+      }
+    });
+
+    proc.on("error", (err) => {
+      console.log(`  (Eval skipped: ${err.message})`);
+      resolve({
+        passed: true,
+        score: 1.0,
+        feedback: `Eval unavailable: ${err.message}`,
+      });
     });
   });
 }

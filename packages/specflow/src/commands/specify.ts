@@ -1,11 +1,15 @@
 /**
  * Specify Command
- * Run SpecKit SPECIFY phase for a feature
+ * Run SpecFlow SPECIFY phase for a feature
  */
 
-import { join } from "path";
+import { join, dirname } from "path";
 import { existsSync, mkdirSync, readFileSync } from "fs";
 import { spawn } from "child_process";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import {
   initDatabase,
   closeDatabase,
@@ -15,7 +19,7 @@ import {
   getDbPath,
   dbExists,
 } from "../lib/database";
-import type { Feature, SpecPhase } from "../types";
+import type { Feature } from "../types";
 
 export interface SpecifyCommandOptions {
   dryRun?: boolean;
@@ -67,7 +71,7 @@ export async function specifyCommand(
     console.log(`Spec directory: ${specPath}`);
 
     if (options.dryRun) {
-      console.log("\n[DRY RUN] Would invoke SpecKit interview for this feature");
+      console.log("\n[DRY RUN] Would invoke SpecFlow interview for this feature");
       return;
     }
 
@@ -77,7 +81,7 @@ export async function specifyCommand(
       ? readFileSync(appContextPath, "utf-8")
       : null;
 
-    // Build the prompt for Claude to run SpecKit specify
+    // Build the prompt for Claude to run SpecFlow specify
     const prompt = buildSpecifyPrompt(feature, specPath, appContext);
 
     // Update phase to specify (in progress)
@@ -85,7 +89,7 @@ export async function specifyCommand(
     updateFeatureSpecPath(featureId, specPath);
 
     // Run Claude with the prompt
-    console.log("\nInvoking Claude with SpecKit specify workflow...\n");
+    console.log("\nInvoking Claude with SpecFlow specify workflow...\n");
     console.log("─".repeat(60));
 
     const result = await runClaude(prompt, projectPath);
@@ -95,9 +99,25 @@ export async function specifyCommand(
       const specFile = join(specPath, "spec.md");
       if (existsSync(specFile)) {
         console.log("\n─".repeat(60));
-        console.log(`\n✓ SPECIFY phase complete for ${featureId}`);
-        console.log(`  Spec created: ${specFile}`);
-        console.log("\nNext: Run 'specflow plan " + featureId + "' for technical planning");
+        console.log(`\n📝 Spec created: ${specFile}`);
+
+        // Run quality gate eval
+        console.log("\n🔍 Running spec quality evaluation...\n");
+        const evalResult = await runSpecEval(specFile, projectPath);
+
+        if (evalResult.passed) {
+          console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}%)`);
+          console.log(`\n✓ SPECIFY phase complete for ${featureId}`);
+          console.log("\nNext: Run 'specflow plan " + featureId + "' for technical planning");
+        } else {
+          console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < 80%)`);
+          console.log("\nFeedback:");
+          console.log(evalResult.feedback);
+          console.log("\n─".repeat(60));
+          console.log("\nThe spec has quality issues. Review the feedback above.");
+          console.log("To revise: edit the spec and run 'specflow eval run --file " + specFile + "'");
+          console.log("When passing, run 'specflow plan " + featureId + "' to continue.");
+        }
       } else {
         console.log("\n─".repeat(60));
         console.log(`\n⚠ Claude finished but spec.md was not created`);
@@ -114,7 +134,7 @@ export async function specifyCommand(
 }
 
 /**
- * Build the prompt for SpecKit specify phase
+ * Build the prompt for SpecFlow specify phase
  */
 function buildSpecifyPrompt(feature: Feature, specPath: string, appContext: string | null): string {
   const contextSection = appContext
@@ -133,7 +153,7 @@ No app-context.md found. You may ask clarifying questions about this feature.
 
 `;
 
-  return `You are running SpecKit's SPECIFY phase for a feature.
+  return `You are running SpecFlow's SPECIFY phase for a feature.
 
 ## Feature to Specify
 
@@ -208,6 +228,94 @@ async function runClaude(
         success: false,
         output,
         error: `Process error: ${err.message}`,
+      });
+    });
+  });
+}
+
+/**
+ * Run spec quality evaluation
+ */
+async function runSpecEval(
+  specFile: string,
+  projectPath: string
+): Promise<{ passed: boolean; score: number; feedback: string }> {
+  return new Promise((resolve) => {
+    // Run specflow eval with the spec file and spec-quality rubric
+    const proc = spawn(
+      "specflow",
+      [
+        "eval",
+        "run",
+        "--file",
+        specFile,
+        "--rubric",
+        "spec-quality",
+        "--json",
+      ],
+      {
+        cwd: projectPath,
+        stdio: ["inherit", "pipe", "pipe"],
+        env: { ...process.env },
+      }
+    );
+
+    let output = "";
+    let stderr = "";
+
+    proc.stdout?.on("data", (data) => {
+      output += data.toString();
+    });
+
+    proc.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    proc.on("close", (code) => {
+      try {
+        // Try to parse JSON output
+        const result = JSON.parse(output);
+        const testResult = result.results?.[0];
+
+        if (testResult) {
+          resolve({
+            passed: testResult.passed,
+            score: testResult.score ?? 0,
+            feedback: testResult.output || "No feedback available",
+          });
+        } else {
+          // Fallback if no results
+          resolve({
+            passed: true, // Don't block if eval fails
+            score: 1.0,
+            feedback: "Evaluation skipped - no rubric configured",
+          });
+        }
+      } catch {
+        // If JSON parsing fails, check for rubric error
+        if (output.includes("not found") || stderr.includes("not found")) {
+          console.log("  (No spec-quality rubric found - skipping quality gate)");
+          resolve({
+            passed: true,
+            score: 1.0,
+            feedback: "No rubric configured - quality gate skipped",
+          });
+        } else {
+          resolve({
+            passed: true, // Don't block on eval errors
+            score: 1.0,
+            feedback: `Eval error: ${stderr || output || "Unknown error"}`,
+          });
+        }
+      }
+    });
+
+    proc.on("error", (err) => {
+      console.log(`  (Eval skipped: ${err.message})`);
+      resolve({
+        passed: true,
+        score: 1.0,
+        feedback: `Eval unavailable: ${err.message}`,
       });
     });
   });

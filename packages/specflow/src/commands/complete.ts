@@ -12,7 +12,8 @@
  */
 
 import { join } from "path";
-import { existsSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
+import { spawnSync } from "child_process";
 import {
   initDatabase,
   closeDatabase,
@@ -40,7 +41,88 @@ export interface ValidationResult {
     planExists: boolean;
     tasksExists: boolean;
     docsExists: boolean;
+    verifyExists: boolean;
   };
+  tests: {
+    srcFileCount: number;
+    testFileCount: number;
+    ratio: number;
+    allTestsPass: boolean;
+  };
+}
+
+// Minimum test coverage ratio (test files / source files)
+const MIN_TEST_COVERAGE_RATIO = 0.3;
+
+// Required sections in verify.md
+const VERIFY_REQUIRED_SECTIONS = [
+  "## Pre-Verification Checklist",
+  "## Smoke Test Results",
+  "## Browser Verification",
+  "## API Verification",
+];
+
+/**
+ * Count files matching pattern recursively
+ */
+function countFilesRecursive(dir: string, pattern: RegExp): number {
+  if (!existsSync(dir)) return 0;
+
+  let count = 0;
+  const entries = readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+      count += countFilesRecursive(fullPath, pattern);
+    } else if (entry.isFile() && pattern.test(entry.name)) {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Run tests and check if they pass
+ */
+function runTests(): { pass: boolean; output: string } {
+  const result = spawnSync("bun", ["test"], {
+    encoding: "utf-8",
+    timeout: 60000,
+    cwd: process.cwd(),
+  });
+
+  return {
+    pass: result.status === 0,
+    output: result.stdout + result.stderr,
+  };
+}
+
+/**
+ * Validate verify.md has required sections
+ */
+function validateVerifyFile(verifyPath: string): string[] {
+  const errors: string[] = [];
+
+  if (!existsSync(verifyPath)) {
+    return ["verify.md does not exist"];
+  }
+
+  const content = readFileSync(verifyPath, "utf-8");
+
+  for (const section of VERIFY_REQUIRED_SECTIONS) {
+    if (!content.includes(section)) {
+      errors.push(`verify.md missing required section: "${section}"`);
+    }
+  }
+
+  // Check that verification was actually completed (not just template)
+  if (content.includes("[paste actual output]") || content.includes("[paste actual response]")) {
+    errors.push("verify.md contains unfilled placeholders - actual verification not performed");
+  }
+
+  return errors;
 }
 
 /**
@@ -48,6 +130,8 @@ export interface ValidationResult {
  * Returns validation result with specific errors
  */
 export function validateFeatureCompletion(specPath: string): ValidationResult {
+  const projectPath = process.cwd();
+
   const result: ValidationResult = {
     valid: true,
     errors: [],
@@ -57,6 +141,13 @@ export function validateFeatureCompletion(specPath: string): ValidationResult {
       planExists: false,
       tasksExists: false,
       docsExists: false,
+      verifyExists: false,
+    },
+    tests: {
+      srcFileCount: 0,
+      testFileCount: 0,
+      ratio: 0,
+      allTestsPass: false,
     },
   };
 
@@ -64,12 +155,14 @@ export function validateFeatureCompletion(specPath: string): ValidationResult {
   const planFile = join(specPath, "plan.md");
   const tasksFile = join(specPath, "tasks.md");
   const docsFile = join(specPath, "docs.md");
+  const verifyFile = join(specPath, "verify.md");
 
   // Check each required file
   result.files.specExists = existsSync(specFile);
   result.files.planExists = existsSync(planFile);
   result.files.tasksExists = existsSync(tasksFile);
   result.files.docsExists = existsSync(docsFile);
+  result.files.verifyExists = existsSync(verifyFile);
 
   if (!result.files.specExists) {
     result.valid = false;
@@ -89,6 +182,53 @@ export function validateFeatureCompletion(specPath: string): ValidationResult {
   if (!result.files.docsExists) {
     result.valid = false;
     result.errors.push(`Missing docs.md - document what was updated (README, CLAUDE.md, etc.)`);
+  }
+
+  if (!result.files.verifyExists) {
+    result.valid = false;
+    result.errors.push(`Missing verify.md - verify the feature works end-to-end before completing`);
+  } else {
+    // Validate verify.md content
+    const verifyErrors = validateVerifyFile(verifyFile);
+    if (verifyErrors.length > 0) {
+      result.valid = false;
+      result.errors.push(...verifyErrors);
+    }
+  }
+
+  // Test coverage validation
+  const srcDir = join(projectPath, "src");
+  const testsDir = join(projectPath, "tests");
+  const testDirAlt = join(projectPath, "test");
+
+  result.tests.srcFileCount = countFilesRecursive(srcDir, /\.(ts|tsx|js|jsx)$/);
+  result.tests.testFileCount =
+    countFilesRecursive(testsDir, /\.test\.(ts|tsx|js|jsx)$/) +
+    countFilesRecursive(testDirAlt, /\.test\.(ts|tsx|js|jsx)$/);
+
+  if (result.tests.srcFileCount > 0) {
+    result.tests.ratio = result.tests.testFileCount / result.tests.srcFileCount;
+
+    if (result.tests.ratio < MIN_TEST_COVERAGE_RATIO) {
+      result.valid = false;
+      result.errors.push(
+        `Insufficient test coverage: ${result.tests.testFileCount} test files for ${result.tests.srcFileCount} source files ` +
+          `(ratio: ${result.tests.ratio.toFixed(2)}, minimum: ${MIN_TEST_COVERAGE_RATIO})`
+      );
+    }
+  }
+
+  // Run tests and check they pass
+  if (result.tests.testFileCount > 0) {
+    const testResult = runTests();
+    result.tests.allTestsPass = testResult.pass;
+
+    if (!testResult.pass) {
+      result.valid = false;
+      result.errors.push("Tests are failing - fix all tests before marking feature complete");
+    }
+  } else {
+    result.warnings.push("No test files found - TDD was not followed");
   }
 
   return result;
@@ -135,26 +275,40 @@ export async function completeCommand(
     // Validate all required files exist
     const validation = validateFeatureCompletion(feature.specPath);
 
+    // Show warnings even if validation passes
+    if (validation.warnings.length > 0) {
+      console.warn("⚠️  Warnings:");
+      for (const warning of validation.warnings) {
+        console.warn(`   - ${warning}`);
+      }
+      console.warn("");
+    }
+
     if (!validation.valid) {
       if (options.force) {
         console.warn("⚠️  WARNING: Bypassing validation with --force");
-        console.warn("   Missing files:");
+        console.warn("   Issues:");
         for (const error of validation.errors) {
           console.warn(`   - ${error}`);
         }
         console.warn("");
       } else {
-        console.error("Error: Cannot mark feature as complete - missing required files:");
+        console.error("Error: Cannot mark feature as complete - validation failed:");
         console.error("");
         for (const error of validation.errors) {
           console.error(`  ✗ ${error}`);
         }
         console.error("");
         console.error("The SpecFlow workflow requires:");
-        console.error("  1. spec.md  - Feature specification (specflow specify)");
-        console.error("  2. plan.md  - Technical plan (specflow plan)");
-        console.error("  3. tasks.md - Implementation tasks (specflow tasks)");
-        console.error("  4. docs.md  - Documentation updates (README, CLAUDE.md, etc.)");
+        console.error("  1. spec.md   - Feature specification (specflow specify)");
+        console.error("  2. plan.md   - Technical plan (specflow plan)");
+        console.error("  3. tasks.md  - Implementation tasks (specflow tasks)");
+        console.error("  4. docs.md   - Documentation updates (README, CLAUDE.md, etc.)");
+        console.error("  5. verify.md - End-to-end verification (prove it works)");
+        console.error("");
+        console.error("Test Coverage Requirements:");
+        console.error(`  - Minimum test file ratio: ${MIN_TEST_COVERAGE_RATIO} (test files / source files)`);
+        console.error("  - All tests must pass");
         console.error("");
         console.error("Use --force to bypass validation (not recommended).");
         process.exit(1);
@@ -165,6 +319,12 @@ export async function completeCommand(
       console.log(`  ✓ plan.md exists`);
       console.log(`  ✓ tasks.md exists`);
       console.log(`  ✓ docs.md exists`);
+      console.log(`  ✓ verify.md exists and complete`);
+      console.log(
+        `  ✓ Test coverage: ${validation.tests.testFileCount}/${validation.tests.srcFileCount} files ` +
+          `(ratio: ${validation.tests.ratio.toFixed(2)})`
+      );
+      console.log(`  ✓ All tests pass`);
       console.log("");
     }
 

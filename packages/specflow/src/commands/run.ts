@@ -64,7 +64,7 @@ export async function runCommand(options: RunCommandOptions): Promise<void> {
 
     // Show what needs to be done - with priority highlighted
     if (needsPhases.length > 0) {
-      console.log("⏳ Features needing SpecKit phases (by priority):");
+      console.log("⏳ Features needing SpecFlow phases (by priority):");
       for (const f of needsPhases.slice(0, 5)) {
         const isPriority = f.id === nextByPriority?.id;
         const marker = isPriority ? "→" : " ";
@@ -102,7 +102,7 @@ export async function runCommand(options: RunCommandOptions): Promise<void> {
       // Highest priority feature needs phases
       console.log(`Highest priority: ${nextByPriority.id} [P${nextByPriority.priority}] - ${nextByPriority.name}`);
       console.log("");
-      console.log("Complete SpecKit phases first:");
+      console.log("Complete SpecFlow phases first:");
       printPhaseCommands(nextByPriority, "   ");
       console.log("");
       console.log("Then run: specflow implement");

@@ -26,12 +26,14 @@ bun run install.ts --update
 
 ## What's Included
 
-| # | Package | Purpose | Dependencies |
-|---|---------|---------|--------------|
-| 1 | **SpecKit** | Spec-driven workflow skill | None |
-| 2 | **SpecFlow** | CLI orchestration | SpecKit |
-| 3 | **specflow-ui** | Progress dashboard | SpecFlow |
-| 4 | **pai-deps** | Dependency tracking | None |
+| # | Package | Purpose | Status |
+|---|---------|---------|--------|
+| 1 | **SpecFlow** | Unified spec-driven workflow + CLI | **Primary** |
+| 2 | ~~SpecKit~~ | Individual spec workflow | **Merged into SpecFlow** |
+| 3 | **specflow-ui** | Progress dashboard | Active |
+| 4 | **pai-deps** | Dependency tracking | Active |
+
+> **Note:** As of January 2026, SpecKit has been unified into SpecFlow. All SpecKit functionality is now available through the `specflow` CLI.
 
 ---
 
@@ -70,27 +72,11 @@ cd specflow-bundle
 ```
 
 **Verify:**
-- [ ] `packages/speckit/` exists with files
 - [ ] `packages/specflow/` exists with files
 - [ ] `packages/specflow-ui/` exists with files
 - [ ] `packages/pai-deps/` exists with files (submodule)
 
-### Step 2: Install SpecKit Skill
-
-```bash
-cp -r packages/speckit ~/.claude/skills/SpecKit
-cd ~/.claude/skills/SpecKit && bun install
-```
-
-**Verify SpecKit installation:**
-- [ ] `~/.claude/skills/SpecKit/SKILL.md` exists
-- [ ] `~/.claude/skills/SpecKit/src/index.ts` exists
-- [ ] `~/.claude/skills/SpecKit/src/registry.ts` exists
-- [ ] `~/.claude/skills/SpecKit/src/types.ts` exists
-- [ ] `~/.claude/skills/SpecKit/templates/` directory with 5 files
-- [ ] `~/.claude/skills/SpecKit/node_modules/` exists (after bun install)
-
-### Step 3: Install SpecFlow Skill
+### Step 2: Install SpecFlow Skill
 
 ```bash
 cp -r packages/specflow ~/.claude/skills/SpecFlow
@@ -100,12 +86,14 @@ cd ~/.claude/skills/SpecFlow && bun install
 **Verify SpecFlow installation:**
 - [ ] `~/.claude/skills/SpecFlow/SKILL.md` exists
 - [ ] `~/.claude/skills/SpecFlow/src/index.ts` exists
-- [ ] `~/.claude/skills/SpecFlow/src/commands/` directory with 15+ files
-- [ ] `~/.claude/skills/SpecFlow/src/lib/` directory with 6 files
-- [ ] `~/.claude/skills/SpecFlow/prompts/` directory with 2 files
+- [ ] `~/.claude/skills/SpecFlow/src/commands/` directory with 19 files
+- [ ] `~/.claude/skills/SpecFlow/src/lib/` directory with lib files + eval/
+- [ ] `~/.claude/skills/SpecFlow/templates/` directory with 6 files
+- [ ] `~/.claude/skills/SpecFlow/evals/` directory with rubrics
+- [ ] `~/.claude/skills/SpecFlow/workflows/` directory
 - [ ] `~/.claude/skills/SpecFlow/node_modules/` exists (after bun install)
 
-### Step 4: Install specflow-ui
+### Step 3: Install specflow-ui
 
 ```bash
 mkdir -p ~/.config/specflow
@@ -131,7 +119,7 @@ chmod +x ~/.local/bin/specflow-ui
 - [ ] `~/.config/specflow/ui/node_modules/` exists (after bun install)
 - [ ] `~/.local/bin/specflow-ui` exists and is executable
 
-### Step 5: Install pai-deps
+### Step 4: Install pai-deps
 
 ```bash
 cp -r packages/pai-deps ~/.config/specflow/pai-deps
@@ -153,7 +141,7 @@ chmod +x ~/.local/bin/pai-deps
 - [ ] `~/.config/specflow/pai-deps/node_modules/` exists (after bun install)
 - [ ] `~/.local/bin/pai-deps` exists and is executable
 
-### Step 6: Verify PATH
+### Step 5: Verify PATH
 
 Ensure `~/.local/bin` is in your PATH:
 
@@ -167,16 +155,12 @@ echo $PATH | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$
 
 After completing all steps, verify:
 
-- [ ] **SpecKit** - FULLY installed in `~/.claude/skills/SpecKit/`
-  - [ ] All 3 source files in `src/`
-  - [ ] All 5 template files in `templates/`
-  - [ ] SKILL.md present
-  - [ ] Dependencies installed
-
 - [ ] **SpecFlow** - FULLY installed in `~/.claude/skills/SpecFlow/`
-  - [ ] All 15+ command files in `src/commands/`
-  - [ ] All 6 lib files in `src/lib/`
-  - [ ] All 2 prompt files in `prompts/`
+  - [ ] All 19 command files in `src/commands/`
+  - [ ] All lib files in `src/lib/` including `eval/` subdirectory
+  - [ ] All 6 template files in `templates/`
+  - [ ] `evals/` directory with rubrics
+  - [ ] `workflows/` directory
   - [ ] SKILL.md present
   - [ ] Dependencies installed
 
@@ -197,22 +181,18 @@ After completing all steps, verify:
 
 ## Usage After Installation
 
-### In Claude Code
-
-```
-/speckit.specify   # Start a new feature specification
-/speckit.plan      # Create implementation plan
-/speckit.tasks     # Generate task breakdown
-/speckit.implement # Execute with TDD enforcement
-```
-
-### SpecFlow CLI
+### SpecFlow CLI (Unified Commands)
 
 ```bash
 specflow init my-project     # Initialize a new project
 specflow add "New feature"   # Add a feature
 specflow status              # Check progress
-specflow run F-1             # Run a feature through phases
+specflow specify F-1         # Create specification
+specflow plan F-1            # Create implementation plan
+specflow tasks F-1           # Generate task breakdown
+specflow implement F-1       # Execute with TDD enforcement
+specflow complete F-1        # Mark feature complete
+specflow eval run            # Run quality evaluations
 specflow ui                  # Launch dashboard
 ```
 
@@ -237,7 +217,7 @@ specflow-ui --port 3000      # Launch on port 3000
 ## The Four-Phase Workflow
 
 ```
-SPECIFY → PLAN → TASKS → IMPLEMENT
+SPECIFY -> PLAN -> TASKS -> IMPLEMENT
 ```
 
 | Phase | What | Output |
@@ -245,42 +225,60 @@ SPECIFY → PLAN → TASKS → IMPLEMENT
 | **SPECIFY** | Define requirements, success criteria | `spec.md` |
 | **PLAN** | Design architecture, data models | `plan.md` |
 | **TASKS** | Break into reviewable units | `tasks.md` |
-| **IMPLEMENT** | Build with TDD (RED→GREEN→BLUE) | Working code |
+| **IMPLEMENT** | Build with TDD (RED->GREEN->BLUE) | Working code |
 
 Each phase is **gated** - you cannot advance until the current phase is validated.
+
+### Quality Gates
+
+SpecFlow includes built-in quality evaluations:
+
+- **Spec Quality** - Validates specification completeness
+- **Plan Quality** - Validates technical design
+- Quality threshold: >= 80% to proceed
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    specflow-ui                          │
-│              (Progress Dashboard)                       │
-│         http://localhost:3000                           │
-└─────────────────────┬───────────────────────────────────┘
-                      │ reads
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                    SpecFlow                             │
-│              (CLI Orchestration)                        │
-│    specflow init | status | run | complete              │
-└─────────────────────┬───────────────────────────────────┘
-                      │ manages
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                    SpecKit                              │
-│           (Spec-Driven Workflow)                        │
-│   /speckit.specify → plan → tasks → implement           │
-└─────────────────────┬───────────────────────────────────┘
-                      │ validates against
-                      ▼
-┌─────────────────────────────────────────────────────────┐
-│                    pai-deps                             │
-│           (Dependency Registry)                         │
-│   pai-deps verify | blast-radius | health               │
-└─────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    specflow-ui                               |
+|              (Progress Dashboard)                            |
+|         http://localhost:3000                                |
++----------------------------+---------------------------------+
+                             | reads
+                             v
++-------------------------------------------------------------+
+|                    SpecFlow                                  |
+|         (Unified CLI + Spec-Driven Workflow)                 |
+|   specflow specify -> plan -> tasks -> implement             |
++----------------------------+---------------------------------+
+                             | validates against
+                             v
++-------------------------------------------------------------+
+|                    pai-deps                                  |
+|           (Dependency Registry)                              |
+|   pai-deps verify | blast-radius | health                    |
++-------------------------------------------------------------+
 ```
+
+---
+
+## Migration from Separate SpecKit
+
+If you previously had SpecKit installed separately:
+
+1. Remove the old SpecKit skill: `rm -rf ~/.claude/skills/SpecKit`
+2. Install the updated SpecFlow (this bundle)
+3. Update any references from `/speckit.*` commands to `specflow` CLI
+
+| Old Command | New Command |
+|-------------|-------------|
+| `/speckit.specify` | `specflow specify F-N` |
+| `/speckit.plan` | `specflow plan F-N` |
+| `/speckit.tasks` | `specflow tasks F-N` |
+| `/speckit.implement` | `specflow implement F-N` |
 
 ---
 

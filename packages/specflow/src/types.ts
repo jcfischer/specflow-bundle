@@ -13,7 +13,7 @@
 export type FeatureStatus = "pending" | "in_progress" | "complete" | "skipped";
 
 /**
- * SpecKit phase for a feature
+ * SpecFlow phase for a feature
  * Each feature must progress through: specify -> plan -> tasks -> implement
  */
 export type SpecPhase = "none" | "specify" | "plan" | "tasks" | "implement";
@@ -36,7 +36,7 @@ export interface Feature {
   priority: number;
   /** Current status */
   status: FeatureStatus;
-  /** Current SpecKit phase (none -> specify -> plan -> tasks -> implement) */
+  /** Current SpecFlow phase (none -> specify -> plan -> tasks -> implement) */
   phase: SpecPhase;
   /** Path to detailed spec directory (if specified) */
   specPath: string | null;
@@ -46,6 +46,8 @@ export interface Feature {
   startedAt: Date | null;
   /** When implementation completed */
   completedAt: Date | null;
+  /** Original ID from SpecKit registry migration (e.g., "035") */
+  migratedFrom: string | null;
 }
 
 // =============================================================================

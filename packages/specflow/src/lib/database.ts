@@ -142,13 +142,21 @@ export function initDatabase(dbPath: string): Database {
       spec_path TEXT,
       created_at TEXT NOT NULL,
       started_at TEXT,
-      completed_at TEXT
+      completed_at TEXT,
+      migrated_from TEXT
     )
   `);
 
   // Migration: add phase column if it doesn't exist (for existing databases)
   try {
     db.exec(`ALTER TABLE features ADD COLUMN phase TEXT NOT NULL DEFAULT 'none'`);
+  } catch {
+    // Column already exists, ignore
+  }
+
+  // Migration: add migrated_from column if it doesn't exist (for existing databases)
+  try {
+    db.exec(`ALTER TABLE features ADD COLUMN migrated_from TEXT`);
   } catch {
     // Column already exists, ignore
   }
@@ -208,6 +216,8 @@ export interface AddFeatureInput {
   description: string;
   priority: number;
   specPath?: string;
+  /** Original ID from SpecFlow registry (for migration) */
+  migratedFrom?: string;
 }
 
 /**
@@ -218,9 +228,9 @@ export function addFeature(input: AddFeatureInput): void {
   const now = new Date().toISOString();
 
   db.run(
-    `INSERT INTO features (id, name, description, priority, spec_path, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.id, input.name, input.description, input.priority, input.specPath ?? null, now]
+    `INSERT INTO features (id, name, description, priority, spec_path, created_at, migrated_from)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [input.id, input.name, input.description, input.priority, input.specPath ?? null, now, input.migratedFrom ?? null]
   );
 }
 
@@ -268,7 +278,7 @@ export function getNextFeature(): Feature | null {
 
 /**
  * Get the next feature ready for implementation (highest priority with phase = tasks or implement)
- * This respects priority order and only returns features that have completed SpecKit phases.
+ * This respects priority order and only returns features that have completed SpecFlow phases.
  */
 export function getNextReadyFeature(): Feature | null {
   const db = getDb();
@@ -285,7 +295,7 @@ export function getNextReadyFeature(): Feature | null {
 }
 
 /**
- * Get the next feature needing SpecKit phases (highest priority with phase != tasks/implement)
+ * Get the next feature needing SpecFlow phases (highest priority with phase != tasks/implement)
  * Use this to guide users to complete phases before implementation.
  */
 export function getNextFeatureNeedingPhases(): Feature | null {
@@ -395,7 +405,7 @@ export function deleteFeature(id: string): void {
 }
 
 /**
- * Update a feature's SpecKit phase
+ * Update a feature's SpecFlow phase
  */
 export function updateFeaturePhase(id: string, phase: SpecPhase): void {
   const db = getDb();
@@ -493,6 +503,7 @@ interface FeatureRow {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  migrated_from: string | null;
 }
 
 interface StatsRow {
@@ -515,5 +526,6 @@ function rowToFeature(row: FeatureRow): Feature {
     createdAt: new Date(row.created_at),
     startedAt: row.started_at ? new Date(row.started_at) : null,
     completedAt: row.completed_at ? new Date(row.completed_at) : null,
+    migratedFrom: row.migrated_from,
   };
 }

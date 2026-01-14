@@ -1,0 +1,220 @@
+# Plan Quality Rubric
+# Evaluates technical plans for completeness, traceability, and resilience
+# Weights sum to 1.0 | Pass threshold: 80%
+
+name: plan-quality
+passThreshold: 0.8
+
+criteria:
+  - name: Spec Traceability
+    weight: 0.30
+    description: |
+      Every requirement from the spec has a corresponding implementation approach.
+      Must demonstrate:
+      - All functional requirements (FR-X) mapped to implementation
+      - All non-functional requirements have strategy
+      - Success criteria achievable with this plan
+      - No scope creep (plan doesn't add unrequested features)
+
+      Red flags:
+      - Requirements mentioned without implementation approach
+      - New features not in original spec
+      - "Out of scope" items sneaking back in
+      - Missing NFR strategies (performance, security)
+    examples:
+      good: |
+        ## Requirement Mapping
+
+        | Spec Requirement | Implementation Approach |
+        |-----------------|------------------------|
+        | FR-1: User login | `src/lib/auth.ts` - validateMagicLink() |
+        | FR-2: Session mgmt | `src/lib/session.ts` - createSession(), revokeSession() |
+        | NFR-1: <500ms p95 | Edge runtime, no cold starts, cached token lookup |
+        | NFR-2: Rate limiting | Upstash Redis with sliding window |
+
+        ## Scope Verification
+        - In spec, in plan: Magic links, sessions, rate limiting
+        - In spec, NOT in plan: None (all covered)
+        - NOT in spec, in plan: None (no scope creep)
+      bad: |
+        ## Implementation
+        We'll build the auth system with all the usual stuff.
+        Also adding OAuth since it would be nice to have.
+
+  - name: Architectural Soundness
+    weight: 0.25
+    description: |
+      Clear component boundaries, appropriate abstractions, follows existing patterns.
+      Must demonstrate:
+      - Single responsibility for each component
+      - Dependencies flow in one direction (no circular)
+      - Appropriate abstraction level for problem
+      - Reuses existing codebase patterns
+      - New patterns have explicit rationale
+
+      Red flags:
+      - God objects or functions doing too much
+      - Circular dependencies
+      - Over-abstraction for simple problems
+      - Ignoring existing patterns without reason
+    examples:
+      good: |
+        ## Architecture
+
+        ```
+        ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+        │   CLI/API   │ --> │   Service   │ --> │    Store    │
+        │  (commands) │     │   (logic)   │     │  (database) │
+        └─────────────┘     └─────────────┘     └─────────────┘
+        ```
+
+        ### Component Responsibilities
+        - `src/commands/auth.ts` - CLI interface only, no business logic
+        - `src/lib/auth-service.ts` - All auth logic, validation, token generation
+        - `src/lib/auth-store.ts` - Database operations only
+
+        ### Pattern Alignment
+        Following existing pattern from `src/lib/email-service.ts`:
+        - Service class with dependency injection
+        - Store abstraction for testability
+        - CLI as thin wrapper
+      bad: |
+        ## Architecture
+        Put everything in one file for simplicity.
+        We can refactor later if needed.
+
+  - name: Failure Resilience
+    weight: 0.20
+    description: |
+      Failure modes identified, recovery strategies defined, blast radius assessed.
+      Must include:
+      - Failure modes for each external dependency
+      - Recovery/fallback strategies
+      - Blast radius (what breaks if this breaks)
+      - Graceful degradation paths
+
+      Red flags:
+      - No mention of what happens when things fail
+      - "Should never happen" assumptions
+      - No fallback strategies
+      - Ignoring downstream impacts
+    examples:
+      good: |
+        ## Failure Mode Analysis
+
+        | Component | Failure Mode | Detection | Recovery | Blast Radius |
+        |-----------|-------------|-----------|----------|--------------|
+        | Resend API | 5xx/timeout | HTTP status | Retry 3x, exponential backoff | Email delayed, not lost |
+        | Redis | Connection refused | Catch on connect | Fallback to in-memory (degraded) | Rate limiting disabled |
+        | Database | Query timeout | Timeout error | Retry once, then fail fast | Auth unavailable |
+
+        ## Graceful Degradation
+        - Redis down: Allow requests (log warning), risk rate limit bypass
+        - Resend down: Queue emails, retry on recovery
+        - DB down: Return 503, no partial state
+
+        ## Blast Radius Assessment
+        - Auth failure affects: Login, protected routes, session refresh
+        - Does NOT affect: Public pages, cached content, webhooks
+      bad: |
+        ## Error Handling
+        Standard try/catch around database calls.
+
+  - name: Implementation Concreteness
+    weight: 0.15
+    description: |
+      Actual file paths, complete data models, specific API contracts.
+      Must include:
+      - Real file paths (not "somewhere in lib")
+      - Complete data models with field types
+      - API endpoints with methods and payloads
+      - Technology choices with versions
+
+      Red flags:
+      - Vague locations ("in the utils folder")
+      - Incomplete schemas ("we'll need some fields")
+      - Missing API details
+      - Unspecified versions
+    examples:
+      good: |
+        ## File Structure
+        ```
+        src/
+        ├── commands/
+        │   └── auth.ts              # CLI: login, logout, whoami
+        ├── lib/
+        │   ├── auth-service.ts      # Business logic
+        │   ├── auth-store.ts        # DB operations
+        │   └── token-generator.ts   # Crypto utilities
+        └── db/
+            └── schema/
+                └── auth-tokens.ts   # Drizzle schema
+        ```
+
+        ## Data Model
+        ```typescript
+        // auth-tokens.ts
+        export const authTokens = sqliteTable('auth_tokens', {
+          id: text('id').primaryKey(),           // nanoid(21)
+          userId: text('user_id').notNull(),     // FK to users
+          tokenHash: text('token_hash').notNull(), // SHA-256 of token
+          expiresAt: integer('expires_at').notNull(), // Unix timestamp
+          createdAt: integer('created_at').notNull(),
+          usedAt: integer('used_at'),            // Null until used
+        });
+        ```
+
+        ## API Contract
+        ```
+        POST /api/auth/magic-link
+        Body: { email: string }
+        Response: { success: true } | { error: string, code: string }
+
+        GET /api/auth/verify?token=xxx
+        Response: 302 redirect to /dashboard (sets cookie)
+        ```
+      bad: |
+        ## Implementation
+        We'll create the necessary files and database tables.
+        API will have the usual endpoints.
+
+  - name: Verifiability
+    weight: 0.10
+    description: |
+      TDD strategy explicit, test cases map to acceptance criteria.
+      Must include:
+      - Specific test file paths
+      - Test cases mapped to acceptance criteria
+      - Integration test approach
+      - How to verify NFRs
+
+      Red flags:
+      - "We'll add tests" without specifics
+      - No mapping to acceptance criteria
+      - Missing integration tests
+      - Untestable NFRs
+    examples:
+      good: |
+        ## Test Strategy
+
+        ### Unit Tests (`tests/lib/auth-service.test.ts`)
+        | Test Case | Maps to | Type |
+        |-----------|---------|------|
+        | generateToken returns 32-byte base64url | NFR-3 | Unit |
+        | validateToken rejects expired | AC-2 | Unit |
+        | validateToken accepts valid within 15min | AC-1 | Unit |
+        | rateLimit blocks after 5 requests | NFR-4 | Unit |
+
+        ### Integration Tests (`tests/integration/auth.test.ts`)
+        - Full magic link flow: request -> email -> click -> session
+        - Expired link rejection
+        - Rate limiting enforcement
+        - Concurrent login handling
+
+        ### NFR Verification
+        - NFR-1 (<500ms): Benchmark test with k6, measure p95
+        - NFR-2 (email <30s): Mock Resend, verify call timing
+        - NFR-4 (rate limit): Integration test with Redis test container
+      bad: |
+        ## Testing
+        Will write tests for the main functionality.

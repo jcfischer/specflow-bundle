@@ -71,7 +71,7 @@ export async function runLoop(
         break;
       }
 
-      // Check if feature has completed SpecKit phases
+      // Check if feature has completed SpecFlow phases
       if (feature.phase !== "tasks" && feature.phase !== "implement") {
         console.log(`\n⚠ Feature ${feature.id} is not ready for implementation.`);
         console.log(`  Current phase: ${feature.phase || "none"}`);
@@ -87,7 +87,7 @@ export async function runLoop(
         } else if (feature.phase === "plan") {
           console.log(`    specflow tasks ${feature.id}`);
         }
-        console.log("\nStopping runner. Complete SpecKit phases before running.");
+        console.log("\nStopping runner. Complete SpecFlow phases before running.");
         break;
       }
 

@@ -23,6 +23,8 @@ import { phaseCommand } from "./commands/phase";
 import { addCommand } from "./commands/add";
 import { removeCommand } from "./commands/remove";
 import { editCommand } from "./commands/edit";
+import { evalCommand } from "./commands/eval";
+import { migrateRegistryCommand } from "./commands/migrate-registry";
 
 // =============================================================================
 // Main Program
@@ -149,11 +151,21 @@ program
 // Register phase command (uses Commander directly for flexibility)
 phaseCommand(program);
 
+// Register eval command group
+evalCommand(program);
+
 program
   .command("ui")
   .description("Start the SpecFlow web dashboard")
   .option("--port <port>", "Port to run server on", "3000")
   .action(uiCommand);
+
+program
+  .command("migrate-registry")
+  .description("Migrate specs from SpecKit JSON registry to project-local databases")
+  .option("--dry-run", "Show what would be migrated without making changes")
+  .option("--registry <path>", "Path to spec-registry.json")
+  .action((options) => migrateRegistryCommand({ dryRun: options.dryRun, registry: options.registry }));
 
 // =============================================================================
 // Parse and Execute

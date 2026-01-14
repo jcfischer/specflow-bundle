@@ -90,13 +90,45 @@ export function parseDecompositionOutput(output: string): DecomposedFeature[] {
 // Validation
 // =============================================================================
 
+// Minimum feature count - projects simpler than this don't need SpecFlow
+export const MIN_FEATURES_HARD_FLOOR = 3;
+export const DEFAULT_MIN_FEATURES = 5;
+export const DEFAULT_MAX_FEATURES = 15;
+
 /**
  * Validate decomposed features for completeness and consistency
  * Returns array of error messages (empty if valid)
  */
-export function validateDecomposedFeatures(features: DecomposedFeature[]): string[] {
+export function validateDecomposedFeatures(
+  features: DecomposedFeature[],
+  options: { minFeatures?: number; maxFeatures?: number } = {}
+): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();
+
+  const minFeatures = options.minFeatures ?? DEFAULT_MIN_FEATURES;
+  const maxFeatures = options.maxFeatures ?? DEFAULT_MAX_FEATURES;
+
+  // Enforce minimum feature count
+  if (features.length < MIN_FEATURES_HARD_FLOOR) {
+    errors.push(
+      `Too few features: ${features.length} (minimum ${MIN_FEATURES_HARD_FLOOR}). ` +
+        `If your project is simpler than ${MIN_FEATURES_HARD_FLOOR} features, you don't need SpecFlow.`
+    );
+  } else if (features.length < minFeatures) {
+    errors.push(
+      `Feature count ${features.length} is below recommended minimum of ${minFeatures}. ` +
+        `Consider breaking features into smaller, independently testable units.`
+    );
+  }
+
+  // Warn if too many features
+  if (features.length > maxFeatures) {
+    errors.push(
+      `Too many features: ${features.length} (maximum ${maxFeatures}). ` +
+        `Consider grouping related features or splitting into multiple projects.`
+    );
+  }
 
   for (const feature of features) {
     // Check required fields

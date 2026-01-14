@@ -22,6 +22,9 @@ import {
   validateDecomposedFeatures,
   assignPriorities,
   decomposeSpec,
+  MIN_FEATURES_HARD_FLOOR,
+  DEFAULT_MIN_FEATURES,
+  DEFAULT_MAX_FEATURES,
 } from "../lib/decomposer";
 import type { DecomposedFeature } from "../types";
 import { getMinimalPAIContext } from "../lib/pai-context";
@@ -72,8 +75,22 @@ export async function initCommand(
       process.exit(1);
     }
 
-    // Validate features
-    const errors = validateDecomposedFeatures(features);
+    // Validate features (including feature count)
+    const minFeatures = options.minFeatures ? parseInt(options.minFeatures) : DEFAULT_MIN_FEATURES;
+    const maxFeatures = options.maxFeatures ? parseInt(options.maxFeatures) : DEFAULT_MAX_FEATURES;
+
+    // Hard floor check - reject before validation
+    if (minFeatures < MIN_FEATURES_HARD_FLOOR) {
+      console.error(
+        `Error: --min-features cannot be less than ${MIN_FEATURES_HARD_FLOOR}.`
+      );
+      console.error(
+        `If your project is simpler than ${MIN_FEATURES_HARD_FLOOR} features, you don't need SpecFlow.`
+      );
+      process.exit(1);
+    }
+
+    const errors = validateDecomposedFeatures(features, { minFeatures, maxFeatures });
     if (errors.length > 0) {
       console.error("Error: Invalid features:");
       for (const error of errors) {
@@ -135,8 +152,8 @@ function outputInterviewPrompt(
   projectPath: string,
   options: InitOptions
 ): void {
-  const minFeatures = options.minFeatures || "5";
-  const maxFeatures = options.maxFeatures || "20";
+  const minFeatures = options.minFeatures || String(DEFAULT_MIN_FEATURES);
+  const maxFeatures = options.maxFeatures || String(DEFAULT_MAX_FEATURES);
 
   console.log("─".repeat(70));
   console.log("SPECFLOW INIT: Interview Phase");
@@ -226,6 +243,29 @@ Guidelines:
 - Earlier features should NOT depend on later ones
 - Each feature should be independently testable
 - Feature descriptions should be 1-2 sentences
+
+## Feature Granularity Rules (CRITICAL)
+
+Each feature should be:
+- **Completable in 1-4 hours** of focused work
+- **Independently testable** with its own test file
+- **User-visible capability**, not an internal module
+
+❌ BAD (too big - this is ONE feature):
+  "F-1: Domain Security Scanner"
+
+✅ GOOD (properly decomposed):
+  "F-1: Domain input validation"
+  "F-2: SSL/TLS certificate scanner"
+  "F-3: HTTP security headers scanner"
+  "F-4: DNS configuration scanner"
+  "F-5: Port scanner"
+  "F-6: Grading engine"
+  "F-7: REST API endpoint"
+  "F-8: Web dashboard UI"
+
+If you find yourself with fewer than ${minFeatures} features, you're not decomposing enough.
+Each scanner, API endpoint, UI component, etc. should be its own feature.
 
 ## Completion
 
