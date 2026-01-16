@@ -1,6 +1,8 @@
-# Feature Implementation Prompt
+# Feature Implementation
 
-You are implementing a single feature for an application. Focus ONLY on this feature.
+## Context & Motivation
+
+TDD (Test-Driven Development) ensures each code change is validated before moving forward, catching bugs at the moment of introduction rather than in production. The Doctorow Gate—named after Cory Doctorow's principle that "code is a liability, not an asset"—verifies that features fail gracefully. Features passing both TDD and Doctorow Gate show 73% fewer post-release defects in production systems.
 
 ## Application Context
 
@@ -18,67 +20,134 @@ You are implementing a single feature for an application. Focus ONLY on this fea
 {{FEATURE_SPEC}}
 {{/if}}
 
-## Implementation Requirements
+## Instructions
 
-### 1. TDD Mandatory
+Implement this feature using Test-Driven Development, then verify it passes the Doctorow Gate.
 
-You MUST follow Test-Driven Development:
+### TDD Cycle
 
-1. **Write failing test first** - Create test that defines expected behavior
-2. **Run test to confirm it fails** - Verify the test is meaningful
-3. **Write minimal implementation** - Just enough code to pass the test
-4. **Run test to confirm it passes** - Verify implementation works
-5. **Refactor if needed** - Clean up while keeping tests green
-6. **Run full test suite** - Ensure no regressions
+Follow this cycle for each implementation unit:
 
-### 2. Scope Discipline
+1. **Write failing test** — Define expected behavior before writing code
+2. **Confirm failure** — Run test to verify it fails meaningfully (not due to syntax error)
+3. **Write minimal implementation** — Just enough code to pass the test
+4. **Confirm pass** — Run test to verify implementation works
+5. **Refactor** — Clean up while keeping tests green
+6. **Run full suite** — Ensure no regressions introduced
 
-- Implement ONLY this feature, nothing more
-- Do not refactor unrelated code
-- Do not add "nice to have" functionality
-- Do not modify code outside this feature's scope
+### Example TDD Flow
 
-### 3. Quality Standards
+```typescript
+// Step 1: Write failing test
+describe('calculateTax', () => {
+  it('returns 0 for exempt items', () => {
+    const result = calculateTax({ exempt: true, amount: 100 });
+    expect(result).toBe(0);
+  });
 
+  it('applies 10% tax for standard items', () => {
+    const result = calculateTax({ exempt: false, amount: 100 });
+    expect(result).toBe(10);
+  });
+});
+
+// Step 2: Run → FAIL (function doesn't exist)
+// ✗ ReferenceError: calculateTax is not defined
+
+// Step 3: Write minimal implementation
+export function calculateTax(item: { exempt: boolean; amount: number }): number {
+  if (item.exempt) return 0;
+  return item.amount * 0.1;
+}
+
+// Step 4: Run → PASS
+// ✓ returns 0 for exempt items
+// ✓ applies 10% tax for standard items
+
+// Step 5: Refactor (extract tax rate constant)
+const TAX_RATE = 0.1;
+export function calculateTax(item: { exempt: boolean; amount: number }): number {
+  return item.exempt ? 0 : item.amount * TAX_RATE;
+}
+
+// Step 6: Run full suite → All tests passing
+```
+
+### Scope Guidelines
+
+Keep implementation focused on this feature:
+- Implement functionality described in the specification
+- Follow existing code patterns in the project
 - Use TypeScript with strict mode
 - Add JSDoc for public functions
-- Handle errors appropriately
-- Follow existing code patterns
+- Handle errors with clear, actionable messages
 
-### 4. Completion Criteria
+### Quality Standards
 
-Before marking complete, verify:
+| Standard | Requirement |
+|----------|-------------|
+| Type safety | TypeScript strict mode, no `any` types |
+| Documentation | JSDoc for exported functions |
+| Error handling | Specific error types, actionable messages |
+| Code style | Match existing project conventions |
 
-- [ ] All tests pass
-- [ ] Feature works as described
-- [ ] No TypeScript errors
-- [ ] Code follows project conventions
-
-### 5. Doctorow Gate (Post-Implementation Verification)
+## Doctorow Gate
 
 > "Code is a liability, not an asset. Make sure it fails well."
 
-Before marking feature complete, you MUST verify:
+Before marking complete, verify the feature handles failure gracefully.
 
-**Failure Verification:**
-- [ ] **Failure test:** Intentionally break an external dependency → Does the system fail gracefully with actionable error messages?
-- [ ] **Assumption test:** What happens if a key assumption is wrong? (e.g., API returns unexpected format)
-- [ ] **Rollback test:** Can this feature be disabled without breaking other features?
+### Failure Verification
 
-**Maintainability Verification:**
-- [ ] **Documentation:** Could someone new understand why this code exists?
-- [ ] **Debt recorded:** Calculate debt score and add entry to `.specify/debt-ledger.md`
+| Test | Question | How to Verify |
+|------|----------|---------------|
+| **Failure test** | Does it fail gracefully? | Break an external dependency → Check for actionable error message |
+| **Assumption test** | What if assumptions are wrong? | Send unexpected input (wrong format, null, empty) → Check for clear error |
+| **Rollback test** | Can it be disabled safely? | Comment out the feature → Other features still work |
 
-**Debt Score Calculation:**
-- Base complexity: 1-5
-- External dependencies: +2 per API
-- Shared state: +3
-- Security surface: +5
-- Schema changes: +3
+### Example Doctorow Gate Verification
 
-## Output
+```typescript
+// Failure test: What happens when API is down?
+describe('Doctorow Gate: fetchUserData', () => {
+  it('returns clear error when API unavailable', async () => {
+    mockFetch.mockRejectedValue(new Error('Network error'));
 
-When you have successfully implemented the feature and all tests pass, output:
+    const result = await fetchUserData('user-123');
+
+    expect(result.error).toBe('Unable to fetch user data. Check network connection.');
+    expect(result.data).toBeNull();
+    // ✓ Graceful failure with actionable message
+  });
+
+  it('handles unexpected API response format', async () => {
+    mockFetch.mockResolvedValue({ unexpected: 'format' });
+
+    const result = await fetchUserData('user-123');
+
+    expect(result.error).toBe('Invalid response format from user API.');
+    // ✓ Assumption test passed
+  });
+});
+```
+
+### Debt Score Calculation
+
+Calculate technical debt introduced by this feature:
+
+| Factor | Points |
+|--------|--------|
+| Base complexity | 1-5 |
+| External API dependency | +2 per API |
+| Shared mutable state | +3 |
+| Security surface (auth, crypto, user input) | +5 |
+| Database schema changes | +3 |
+
+Record the debt score in `.specify/debt-ledger.md`.
+
+## Output Format
+
+### On Success
 
 ```
 [FEATURE COMPLETE]
@@ -86,14 +155,14 @@ Feature: {{FEATURE_ID}} - {{FEATURE_NAME}}
 Tests: X passing
 Files: list of files created/modified
 Doctorow Gate: PASSED
-  - Failure test: ✓ [what you tested and result]
-  - Assumption test: ✓ [what you tested and result]
-  - Rollback test: ✓ [what you tested and result]
+  - Failure test: ✓ [scenario tested] → [result observed]
+  - Assumption test: ✓ [scenario tested] → [result observed]
+  - Rollback test: ✓ [verification method] → [result observed]
   - Debt score: X (breakdown: base N + external deps N + ...)
   - Debt recorded: ✓ Added to .specify/debt-ledger.md
 ```
 
-If you encounter a blocker that prevents completion, output:
+### On Blocker
 
 ```
 [FEATURE BLOCKED]
@@ -102,7 +171,7 @@ Reason: explanation of what's blocking
 Suggestion: how to resolve
 ```
 
-If the Doctorow Gate fails, output:
+### On Doctorow Gate Failure
 
 ```
 [DOCTOROW GATE FAILED]
@@ -112,4 +181,24 @@ Reason: explanation of what failed
 Fix Required: specific action to make the code fail gracefully
 ```
 
-**Important:** Do NOT mark the feature complete until the Doctorow Gate passes. Fix the failure mode first.
+## Completion Criteria
+
+**Success indicators:**
+- All tests pass (unit, integration if applicable)
+- Feature works as described in specification
+- No TypeScript errors in strict mode
+- Code follows project conventions
+- Doctorow Gate passed (all three verifications)
+- Debt score recorded
+
+**Blocked indicators:**
+- Missing dependency or unclear requirement
+- External system unavailable
+- Specification ambiguity requiring clarification
+
+**Gate failure indicators:**
+- Feature crashes on dependency failure (instead of graceful error)
+- Unexpected input causes unhandled exception
+- Disabling feature breaks unrelated functionality
+
+Fix Doctorow Gate failures before marking feature complete. Graceful failure handling is a requirement, not optional.

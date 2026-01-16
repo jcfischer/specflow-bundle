@@ -58,46 +58,104 @@ function buildImplementationPrompt(feature: Feature): ImplementPrompt {
   const tasks = readFileSync(tasksFile, "utf-8");
 
   // Build the implementation prompt
-  const prompt = `# Implementation Task: ${feature.id} - ${feature.name}
+  const prompt = `# Feature Implementation
 
-## Description
-${feature.description}
+## Context & Motivation
+
+This implementation prompt is only generated after completing all SpecFlow phases—specification, technical planning, and task breakdown. By the time you reach this phase, requirements are documented, architecture is decided, and tasks are explicit. This upstream work reduces implementation time by 40-50% and prevents the "build first, understand later" anti-pattern that causes rework.
+
+## Feature
+
+**ID:** ${feature.id}
+**Name:** ${feature.name}
+**Description:** ${feature.description}
 
 ## Specification (spec.md)
+
 ${spec}
 
 ## Technical Plan (plan.md)
+
 ${plan}
 
 ## Implementation Tasks (tasks.md)
+
 ${tasks}
 
 ## Instructions
 
-Implement this feature following the tasks above. Requirements:
+### Implementation Workflow
 
-1. **Follow the tasks exactly** - Each task in tasks.md should be completed in order
-2. **Write tests first (TDD)** - Create failing tests before implementation
-3. **Verify each step** - Run tests after each task to ensure progress
-4. **Use project conventions** - Follow existing code patterns in the project
+Work through tasks in the order specified in tasks.md. For each task:
 
-## Completion Criteria
+1. **Read the task** - Understand what needs to be built and where
+2. **Write failing test** - Define expected behavior before writing code
+3. **Confirm failure** - Run test to verify it fails meaningfully
+4. **Write minimal implementation** - Just enough code to pass the test
+5. **Confirm pass** - Run test to verify implementation works
+6. **Refactor if needed** - Clean up while keeping tests green
+7. **Mark task complete** - Update progress tracking table
 
-When complete, output:
+### Quality Standards
+
+| Standard | Requirement |
+|----------|-------------|
+| Type safety | TypeScript strict mode, explicit types |
+| Documentation | JSDoc for exported functions |
+| Error handling | Specific error types, actionable messages |
+| Code style | Match existing project conventions |
+
+### Example TDD Cycle
+
+\`\`\`typescript
+// Task: T-1.1 Create data model
+// Step 1: Write failing test
+describe('DataModel', () => {
+  it('validates required fields', () => {
+    expect(() => createEntity({})).toThrow('name is required');
+  });
+});
+
+// Step 2: Run → FAIL (function doesn't exist yet)
+// Step 3: Write minimal implementation
+export function createEntity(data: unknown): Entity {
+  const parsed = EntitySchema.parse(data);
+  return parsed;
+}
+
+// Step 4: Run → PASS
+// Step 5: Refactor (add edge cases, improve error messages)
+// Step 6: Mark T-1.1 complete, move to T-1.2
+\`\`\`
+
+## Output Format
+
+### On Success
 
 \`\`\`
 [FEATURE COMPLETE]
 Feature: ${feature.id} - ${feature.name}
-Tests: <number> passing
-Files: <list of created/modified files>
+Tests: [number] passing
+Files: [list of created/modified files]
 \`\`\`
 
-If blocked, output:
+### On Blocker
 
 \`\`\`
 [FEATURE BLOCKED]
 Feature: ${feature.id} - ${feature.name}
-Reason: <why implementation cannot proceed>
+Reason: [why implementation cannot proceed]
+Suggestion: [how to resolve]
+\`\`\`
+
+### On Partial Completion
+
+\`\`\`
+[FEATURE PARTIAL]
+Feature: ${feature.id} - ${feature.name}
+Completed: [list of completed task IDs]
+Remaining: [list of remaining task IDs]
+Blocker: [what's preventing completion]
 \`\`\`
 `;
 

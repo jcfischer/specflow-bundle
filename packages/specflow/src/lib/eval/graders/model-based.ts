@@ -258,6 +258,9 @@ interface GradingResponse {
 
 /**
  * Build a structured grading prompt from a rubric and content
+ *
+ * Uses Chain of Thought (CoT) guidance for more accurate LLM-as-judge scoring.
+ * Research shows CoT improves evaluation accuracy by 15-20% over direct scoring.
  */
 export function buildGradingPrompt(rubric: Rubric, content: string): string {
   const criteriaSection = rubric.criteria
@@ -271,7 +274,15 @@ export function buildGradingPrompt(rubric: Rubric, content: string): string {
     })
     .join("\n\n");
 
-  return `You are evaluating a specification document against the "${rubric.name}" quality rubric.
+  return `# Document Quality Evaluation
+
+## Context & Motivation
+
+You are an expert evaluator assessing document quality against a weighted rubric. Weighted rubrics enable consistent, reproducible evaluation by decomposing subjective quality into measurable criteria. Each criterion has a weight reflecting its importance—scores are aggregated into a weighted average that determines pass/fail.
+
+## Rubric: ${rubric.name}
+
+Pass threshold: ${rubric.passThreshold} (weighted score must meet or exceed this value)
 
 ## Evaluation Criteria
 
@@ -283,21 +294,47 @@ ${criteriaSection}
 ${content}
 \`\`\`
 
-## Instructions
+## Evaluation Instructions
 
-Score each criterion from 0.0 to 1.0, where:
-- 0.0 = Does not meet the criterion at all
-- 0.5 = Partially meets the criterion
-- 1.0 = Fully meets the criterion
+### Scoring Scale
 
-Respond with ONLY valid JSON in this exact format (no additional text):
+| Score | Meaning | Indicators |
+|-------|---------|------------|
+| 1.0 | Excellent | Fully meets criterion, no improvements needed |
+| 0.8 | Good | Meets criterion with minor gaps |
+| 0.6 | Adequate | Partially meets criterion, notable gaps |
+| 0.4 | Weak | Significant gaps, needs improvement |
+| 0.2 | Poor | Barely addresses criterion |
+| 0.0 | Missing | Does not address criterion at all |
+
+### Evaluation Process (Chain of Thought)
+
+For each criterion:
+1. **Quote** specific evidence from the document (or note its absence)
+2. **Compare** against the criterion description and examples
+3. **Identify** strengths and weaknesses
+4. **Score** based on how well the document meets the criterion
+5. **Explain** the reasoning in 1-2 sentences
+
+### Example Reasoning
+
+For a criterion "Clarity" at weight 0.3:
+- Evidence: "The overview uses clear language, but acceptance criteria use undefined terms like 'efficient' without metrics"
+- Strengths: Clear structure, good headers
+- Weaknesses: Vague terms in criteria section
+- Score: 0.7 (good but not excellent due to ambiguous terms)
+- Reasoning: "Clear structure and language overall, but acceptance criteria need measurable definitions"
+
+## Output Format
+
+Respond with ONLY valid JSON in this exact format (no additional text before or after):
 
 \`\`\`json
 {
   "scores": {
-${rubric.criteria.map((c) => `    "${c.name}": { "score": 0.0, "reasoning": "Brief explanation" }`).join(",\n")}
+${rubric.criteria.map((c) => `    "${c.name}": { "score": 0.0, "reasoning": "1-2 sentence explanation with specific evidence" }`).join(",\n")}
   },
-  "overall": "Brief overall assessment"
+  "overall": "2-3 sentence summary: key strengths, main improvement areas, and whether this meets quality standards"
 }
 \`\`\``;
 }

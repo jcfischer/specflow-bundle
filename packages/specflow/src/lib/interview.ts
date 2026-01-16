@@ -414,8 +414,7 @@ export function buildProgressivePrompt(
 
 ${appContext}
 
-**IMPORTANT:** The app-level interview has already been conducted. DO NOT re-interview the user about the app.
-Use the context above to inform this feature's specification.
+The app-level interview is complete. Use this context to inform feature-specific questions—focus on what's unique to this feature rather than re-covering app-level concerns.
 
 `
     : "";
@@ -476,7 +475,11 @@ ${questionList}`;
     })
     .join("\n\n");
 
-  return `You are running SpecFlow's SPECIFY phase with progressive interview.
+  return `# Feature Specification Interview
+
+## Context & Motivation
+
+Progressive disclosure interviews gather requirements in layers—core understanding first (phases 1-3), then optional depth (phases 4-8). This approach respects users' time while ensuring critical requirements are captured. Research shows that front-loading all questions leads to superficial answers, while progressive disclosure achieves 40% more actionable requirements.
 
 ## Feature to Specify
 
@@ -499,30 +502,74 @@ ${progressiveInstructions}
 
 ${questionInstructions}
 
-## Your Task
+## Example Interview Flow
 
-1. **Conduct the interview** using AskUserQuestion tool for each phase
+\`\`\`
+Phase 1: Problem & Pain
+─────────────────────────
+You: "What specific problem does this feature solve?"
+User: "Manual workaround - users export data to Excel, clean it, then re-import"
+You: "Why is solving this now rather than later important?"
+User: "Blocking work - the analytics team needs this before Q2 planning"
+
+[Adapt follow-up based on answers]
+You: "You mentioned Excel export/import. How often does this happen?"
+User: "Daily for some users, weekly for others"
+
+Phase 2: Users & Context
+─────────────────────────
+You: "Who is the primary user of this feature?"
+User: "End users - specifically data analysts"
+...
+
+[After Phase 3, if not quick mode]
+You: "I have enough context for a basic spec. Would you like to continue
+      with optional phases for more detail, or generate now?"
+\`\`\`
+
+## Instructions
+
+### Conducting the Interview
+
+1. **Use AskUserQuestion tool** for each phase question
 2. **Adapt questions** based on feature type and previous answers
 3. **Ask follow-ups** when answers reveal complexity or ambiguity
 4. **After phase 3**: Ask if user wants to continue (unless quick mode)
-5. **Create the specification** at: ${specPath}/spec.md
 
-   The spec.md should contain:
-   - Overview (brief description)
-   - User scenarios with Given/When/Then acceptance criteria
-   - Functional requirements (FR-1, FR-2, etc.)
-   - Non-functional requirements (if applicable)
-   - Success criteria
-   - Assumptions (if any)
-   - \`[TO BE REFINED]\` markers for any incomplete sections
+### Creating the Specification
 
-6. **DO NOT include** implementation details, technology choices, or code
+Write the specification at: ${specPath}/spec.md
 
-7. When complete, confirm by outputting:
-   [PHASE COMPLETE: SPECIFY]
-   Feature: ${feature.id}
-   Spec: ${specPath}/spec.md
-   Phases completed: X/8${config.quickMode ? " (quick mode)" : ""}`;
+Include these sections:
+- Overview (brief description)
+- User scenarios with Given/When/Then acceptance criteria
+- Functional requirements (FR-1, FR-2, etc.)
+- Non-functional requirements (if applicable)
+- Success criteria
+- Assumptions (if any)
+- \`[TO BE REFINED]\` markers for any incomplete sections
+
+Keep the specification focused on *what* and *why*—implementation details, technology choices, and code belong in later phases.
+
+## Output Format
+
+### On Success
+
+\`\`\`
+[PHASE COMPLETE: SPECIFY]
+Feature: ${feature.id}
+Spec: ${specPath}/spec.md
+Phases completed: X/8${config.quickMode ? " (quick mode)" : ""}
+\`\`\`
+
+### On Blocker
+
+\`\`\`
+[PHASE BLOCKED: SPECIFY]
+Feature: ${feature.id}
+Reason: [explanation of what's blocking]
+Suggestion: [how to resolve]
+\`\`\``;
 }
 
 /**

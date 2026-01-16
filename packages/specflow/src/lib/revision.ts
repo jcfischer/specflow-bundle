@@ -200,10 +200,15 @@ export function buildRevisionPrompt(
   type: ArtifactType
 ): string {
   const description = ARTIFACT_DESCRIPTIONS[type];
+  const capitalizedDescription = description.charAt(0).toUpperCase() + description.slice(1);
 
-  return `You are revising a ${description} based on feedback.
+  return `# ${capitalizedDescription} Revision
 
-## Current ${description.charAt(0).toUpperCase() + description.slice(1)}
+## Context & Motivation
+
+Revision preserves approved work while addressing specific weaknesses. Rather than rewriting from scratch—which risks losing valuable decisions already made—targeted revision improves only the sections that need it. This maintains continuity while ensuring quality gates are met.
+
+## Current ${capitalizedDescription}
 
 ${content}
 
@@ -213,14 +218,48 @@ ${feedback}
 
 ## Instructions
 
+### Revision Principles
+
 1. **Preserve** the core content and structure that the user has already approved
 2. **Improve** the weak sections identified in the feedback
-3. **Maintain** consistent formatting and style
-4. **Do not** add features or requirements not mentioned in the original
-5. **Do not** remove sections unless the feedback explicitly says to
+3. **Maintain** consistent formatting and style throughout
+
+### Scope Boundaries
+
+Keep the revision focused on the feedback:
+- Address each point raised in the feedback
+- Retain sections not mentioned in the feedback unchanged
+- Preserve the original intent and scope of the document
+
+### Example Revision Pattern
+
+If feedback says "User scenarios lack edge cases", revise like this:
+
+**Before:**
+\`\`\`markdown
+## User Scenarios
+### Scenario 1: Happy Path
+- Given valid input...
+\`\`\`
+
+**After:**
+\`\`\`markdown
+## User Scenarios
+### Scenario 1: Happy Path
+- Given valid input...
+
+### Scenario 2: Invalid Input (added per feedback)
+- Given malformed data...
+
+### Scenario 3: Timeout Handling (added per feedback)
+- Given network delay exceeds 30 seconds...
+\`\`\`
+
+## Output Format
 
 Output the complete revised ${description} in markdown format.
-Do not include any commentary or explanation - just the revised document.`;
+
+Provide only the revised document—no commentary, explanations, or change summaries. The document should be ready to replace the original directly.`;
 }
 
 /**

@@ -172,7 +172,11 @@ async function askUserToChain(featureId: string): Promise<boolean> {
 }
 
 function buildTasksPrompt(feature: Feature, specContent: string, planContent: string): string {
-  return `You are running SpecFlow's TASKS phase for a feature.
+  return `# Task Breakdown
+
+## Context & Motivation
+
+Task breakdown transforms a technical plan into atomic, executable work units. Well-structured tasks enable parallel execution where possible, clear progress tracking, and explicit dependency management. Research shows that tasks with clear file paths and test locations complete 2x faster than ambiguous tasks, because developers spend zero time deciding *where* to write code.
 
 ## Feature
 
@@ -188,38 +192,93 @@ ${specContent}
 
 ${planContent}
 
-## Your Task
+## Instructions
 
 Create implementation tasks at: ${feature.specPath}/tasks.md
 
-The tasks.md should contain:
-- Task groups (Foundation, Core, Integration, etc.)
-- Task IDs (T-1.1, T-1.2, T-2.1, etc.)
-- Markers: [T] for tasks requiring tests, [P] for parallelizable
-- Dependencies between tasks
-- File paths and test locations
-- Execution order
-- Progress tracking table
+### Task Structure Requirements
 
-Example format:
+| Element | Purpose |
+|---------|---------|
+| Task groups | Logical groupings (Foundation, Core, Integration, Polish) |
+| Task IDs | Hierarchical numbering (T-1.1, T-1.2, T-2.1) |
+| Markers | [T] = requires tests, [P] = parallelizable |
+| Dependencies | Which tasks must complete first |
+| File paths | Exact paths where code will be written |
+| Test locations | Exact paths for test files |
+| Progress table | Checklist for tracking completion |
+
+### Example Task Breakdown
+
 \`\`\`markdown
+# Implementation Tasks: ${feature.name}
+
+## Progress Tracking
+
+| Task | Status | Notes |
+|------|--------|-------|
+| T-1.1 | ☐ | |
+| T-1.2 | ☐ | |
+| T-2.1 | ☐ | |
+
 ## Group 1: Foundation
 
 ### T-1.1: Create data model [T]
-- File: src/model.ts
-- Test: tests/model.test.ts
-- Dependencies: none
+- **File:** src/lib/${feature.id.toLowerCase()}/model.ts
+- **Test:** src/lib/${feature.id.toLowerCase()}/model.test.ts
+- **Dependencies:** none
+- **Description:** Define TypeScript interfaces and Zod schemas for [entities from plan]
 
-### T-1.2: Add CLI skeleton [T]
-- File: src/cli.ts
-- Test: tests/cli.test.ts
-- Dependencies: T-1.1
+### T-1.2: Add database operations [T] [P with T-1.3]
+- **File:** src/lib/${feature.id.toLowerCase()}/database.ts
+- **Test:** src/lib/${feature.id.toLowerCase()}/database.test.ts
+- **Dependencies:** T-1.1
+- **Description:** CRUD operations using Drizzle ORM
+
+## Group 2: Core Logic
+
+### T-2.1: Implement business logic [T]
+- **File:** src/lib/${feature.id.toLowerCase()}/service.ts
+- **Test:** src/lib/${feature.id.toLowerCase()}/service.test.ts
+- **Dependencies:** T-1.1, T-1.2
+- **Description:** Core service functions per specification requirements
+
+## Group 3: Integration
+
+### T-3.1: Add CLI command [T]
+- **File:** src/commands/${feature.id.toLowerCase()}.ts
+- **Test:** src/commands/${feature.id.toLowerCase()}.test.ts
+- **Dependencies:** T-2.1
+- **Description:** Wire service to CLI with Commander.js
+
+## Execution Order
+
+1. T-1.1 (foundation - no deps)
+2. T-1.2, T-1.3 (can run in parallel)
+3. T-2.1 (after group 1)
+4. T-3.1 (after core logic)
 \`\`\`
 
-When complete, output:
+## Output Format
+
+### On Success
+
+\`\`\`
 [PHASE COMPLETE: TASKS]
 Feature: ${feature.id}
-Tasks: ${feature.specPath}/tasks.md`;
+Tasks: ${feature.specPath}/tasks.md
+Total tasks: [count]
+Parallelizable: [count]
+\`\`\`
+
+### On Blocker
+
+\`\`\`
+[PHASE BLOCKED: TASKS]
+Feature: ${feature.id}
+Reason: [explanation of what's blocking]
+Suggestion: [how to resolve]
+\`\`\``;
 }
 
 async function runClaude(

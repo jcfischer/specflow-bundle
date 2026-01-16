@@ -135,7 +135,11 @@ export async function planCommand(
 }
 
 function buildPlanPrompt(feature: Feature, specContent: string): string {
-  return `You are running SpecFlow's PLAN phase for a feature.
+  return `# Technical Planning
+
+## Context & Motivation
+
+Technical planning bridges the gap between "what" (specification) and "how" (implementation). A good plan de-risks implementation by identifying architectural decisions, integration points, and potential blockers upfront. Plans that include data models, API contracts, and file structure reduce implementation time by 30-40% by eliminating decision paralysis during coding.
 
 ## Feature
 
@@ -147,24 +151,99 @@ function buildPlanPrompt(feature: Feature, specContent: string): string {
 
 ${specContent}
 
-## Your Task
+## Instructions
 
 Create a technical plan at: ${feature.specPath}/plan.md
 
-The plan.md should contain:
-- Architecture overview (ASCII diagram if helpful)
-- Technology stack with rationale
-- Data model (entities, schemas)
-- API contracts (if applicable)
-- Implementation phases
-- File structure
-- Dependencies
-- Risk assessment
+### Plan Structure
 
-When complete, output:
+Include these sections:
+
+| Section | Purpose |
+|---------|---------|
+| Architecture overview | High-level system design (ASCII diagram recommended) |
+| Technology stack | Specific libraries/frameworks with rationale |
+| Data model | Entities, schemas, relationships |
+| API contracts | Endpoints, request/response formats (if applicable) |
+| Implementation phases | Ordered steps for building the feature |
+| File structure | Where new code will live |
+| Dependencies | External services, packages, prerequisites |
+| Risk assessment | What could go wrong, mitigation strategies |
+
+### Example Plan Structure
+
+\`\`\`markdown
+# Technical Plan: ${feature.name}
+
+## Architecture Overview
+
+\`\`\`
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   CLI       │────>│   Service   │────>│  Database   │
+│  (command)  │     │   (logic)   │     │  (SQLite)   │
+└─────────────┘     └─────────────┘     └─────────────┘
+\`\`\`
+
+## Technology Stack
+
+| Component | Choice | Rationale |
+|-----------|--------|-----------|
+| Runtime | Bun | Project standard, fast startup |
+| Database | SQLite | Local-first, no server needed |
+| CLI | Commander.js | Project pattern, good DX |
+
+## Data Model
+
+\`\`\`typescript
+interface Entity {
+  id: string;
+  // ... fields based on spec
+}
+\`\`\`
+
+## Implementation Phases
+
+1. **Phase 1: Data layer** - Schema and CRUD operations
+2. **Phase 2: Business logic** - Core service functions
+3. **Phase 3: CLI integration** - Command handlers
+
+## File Structure
+
+\`\`\`
+src/
+├── lib/
+│   └── [feature].ts       # Business logic
+├── commands/
+│   └── [feature].ts       # CLI command
+└── types/
+    └── [feature].ts       # Type definitions
+\`\`\`
+
+## Risk Assessment
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| [Identified risk] | [High/Medium/Low] | [Strategy] |
+\`\`\`
+
+## Output Format
+
+### On Success
+
+\`\`\`
 [PHASE COMPLETE: PLAN]
 Feature: ${feature.id}
-Plan: ${feature.specPath}/plan.md`;
+Plan: ${feature.specPath}/plan.md
+\`\`\`
+
+### On Blocker
+
+\`\`\`
+[PHASE BLOCKED: PLAN]
+Feature: ${feature.id}
+Reason: [explanation of what's blocking]
+Suggestion: [how to resolve]
+\`\`\``;
 }
 
 async function runClaude(

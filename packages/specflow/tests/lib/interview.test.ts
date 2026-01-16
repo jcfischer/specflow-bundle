@@ -284,7 +284,7 @@ describe("buildProgressivePrompt", () => {
     );
     expect(prompt).toContain("App Context");
     expect(prompt).toContain("React app with TypeScript");
-    expect(prompt).toContain("DO NOT re-interview");
+    expect(prompt).toContain("app-level interview is complete");
   });
 
   it("should include question details for required phases", () => {

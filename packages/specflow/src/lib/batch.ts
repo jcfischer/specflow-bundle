@@ -198,7 +198,11 @@ export function buildBatchPrompt(
     ? `## App Context\n\n${appContext}\n\n`
     : "";
 
-  return `You are running SpecFlow's SPECIFY phase in BATCH MODE (non-interactive).
+  return `# Batch Specification Generation
+
+## Context & Motivation
+
+Batch mode generates specifications non-interactively using pre-gathered requirements from the decomposition phase. This enables parallel specification of multiple features without blocking on user input—useful when processing an entire feature backlog or when requirements are already well-understood. Batch-generated specs include \`[TO BE CLARIFIED]\` markers for any gaps, allowing quick review and targeted refinement.
 
 ## Feature to Specify
 
@@ -224,29 +228,76 @@ ${integrationContext}
 ${optionalContext}
 ${uncertaintyNote}
 
-## Your Task (BATCH MODE - NO INTERACTION)
+## Instructions
 
-**IMPORTANT:** This is batch mode. DO NOT use AskUserQuestion. DO NOT prompt for input.
-Generate the specification directly using the pre-gathered requirements above.
+This is batch mode—generate the specification directly from the requirements above without user interaction.
 
-1. **Create the specification** at: ${specPath}/spec.md
+### Creating the Specification
 
-   The spec.md should contain:
-   - Overview (brief description based on the decomposition)
-   - User scenarios with Given/When/Then acceptance criteria
-   - Functional requirements (FR-1, FR-2, etc.)
-   - Non-functional requirements (derived from context above)
-   - Success criteria
-   - Assumptions (if any)
-   - \`[TO BE CLARIFIED]\` markers for any uncertain sections
+Write the specification at: ${specPath}/spec.md
 
-2. **DO NOT include** implementation details, technology choices, or code
+Include these sections:
+- Overview (brief description based on the decomposition)
+- User scenarios with Given/When/Then acceptance criteria
+- Functional requirements (FR-1, FR-2, etc.)
+- Non-functional requirements (derived from context above)
+- Success criteria
+- Assumptions (if any)
+- \`[TO BE CLARIFIED]\` markers for any uncertain sections
 
-3. When complete, output:
-   [PHASE COMPLETE: SPECIFY]
-   Feature: ${feature.id}
-   Spec: ${specPath}/spec.md
-   Mode: batch (non-interactive)`;
+Keep the specification focused on *what* and *why*—implementation details, technology choices, and code belong in later phases.
+
+### Example Output Structure
+
+\`\`\`markdown
+# Specification: ${feature.name}
+
+## Overview
+[Brief description derived from feature decomposition]
+
+## User Scenarios
+
+### Scenario 1: [Primary Use Case]
+- **Given** [initial context]
+- **When** [action taken]
+- **Then** [expected outcome]
+
+## Functional Requirements
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-1 | [Derived from problem context] | High |
+| FR-2 | [Derived from user needs] | Medium |
+
+## Non-Functional Requirements
+- Performance: [Derived from performanceRequirements if available]
+- [TO BE CLARIFIED]: [Any uncertain aspects]
+
+## Success Criteria
+- [ ] [Measurable criterion 1]
+- [ ] [Measurable criterion 2]
+\`\`\`
+
+## Output Format
+
+### On Success
+
+\`\`\`
+[PHASE COMPLETE: SPECIFY]
+Feature: ${feature.id}
+Spec: ${specPath}/spec.md
+Mode: batch (non-interactive)
+Clarifications needed: [count of TO BE CLARIFIED markers]
+\`\`\`
+
+### On Blocker
+
+\`\`\`
+[PHASE BLOCKED: SPECIFY]
+Feature: ${feature.id}
+Reason: [explanation of what's blocking]
+Suggestion: [how to resolve]
+\`\`\``;
 }
 
 // =============================================================================
