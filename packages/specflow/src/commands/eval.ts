@@ -35,6 +35,7 @@ import { existsSync as fileExists, readFileSync } from "fs";
 import { homedir } from "os";
 import Anthropic from "@anthropic-ai/sdk";
 import type { AddTestCaseInput, ReportData } from "../lib/eval";
+import { loadThresholds, toDecimal } from "../lib/threshold";
 
 // =============================================================================
 // Initialize Graders
@@ -85,12 +86,17 @@ function loadApiKeyFromEnv(): string | undefined {
 
 /**
  * Run single file evaluation with a rubric using Claude Haiku
+ * @param filePath - Path to file to evaluate
+ * @param rubricName - Name of rubric (e.g., "spec-quality")
+ * @param projectPath - Path to project root
+ * @param thresholdOverride - Optional threshold override (0-1 decimal)
  */
 async function runSingleFileEval(
   filePath: string,
   rubricName: string,
-  projectPath: string
-): Promise<{ passed: boolean; score: number | null; output: string; error?: string }> {
+  projectPath: string,
+  thresholdOverride?: number
+): Promise<{ passed: boolean; score: number | null; output: string; error?: string; threshold?: number }> {
   // Resolve file path
   const fullPath = filePath.startsWith("/") ? filePath : join(projectPath, filePath);
 
@@ -128,6 +134,11 @@ async function runSingleFileEval(
       output: "",
       error: `Failed to load rubric: ${error instanceof Error ? error.message : String(error)}`,
     };
+  }
+
+  // Apply threshold override if provided
+  if (thresholdOverride !== undefined) {
+    rubric.passThreshold = thresholdOverride;
   }
 
   // Read file content
@@ -168,13 +179,18 @@ async function runSingleFileEval(
       .join("\n");
 
     // Parse and return result
-    return parseGradingResponse(responseText, rubric);
+    const result = parseGradingResponse(responseText, rubric);
+    return {
+      ...result,
+      threshold: rubric.passThreshold,
+    };
   } catch (error) {
     return {
       passed: false,
       score: null,
       output: "",
       error: `Claude API error: ${error instanceof Error ? error.message : String(error)}`,
+      threshold: rubric.passThreshold,
     };
   }
 }
@@ -195,6 +211,7 @@ async function runEvalsCommand(options: {
   output?: string;
   file?: string;
   rubric?: string;
+  threshold?: string;
 }): Promise<void> {
   const projectPath = process.cwd();
   const dbPath = getEvalDbPath(projectPath);
@@ -212,16 +229,42 @@ async function runEvalsCommand(options: {
   try {
     // If --file and --rubric provided, run single file evaluation
     if (options.file && options.rubric) {
-      const result = await runSingleFileEval(options.file, options.rubric, projectPath);
+      // Determine threshold to use (CLI > constitution > rubric default)
+      let thresholdOverride: number | undefined;
+
+      if (options.threshold) {
+        // CLI threshold provided
+        const cliThreshold = parseFloat(options.threshold);
+        if (!isNaN(cliThreshold)) {
+          // Convert percentage to decimal if > 1
+          thresholdOverride = cliThreshold > 1 ? cliThreshold / 100 : cliThreshold;
+        }
+      } else {
+        // Load from constitution
+        const projectThresholds = loadThresholds(projectPath);
+        if (projectThresholds.source === "constitution") {
+          // Map rubric name to threshold type
+          if (options.rubric === "spec-quality") {
+            thresholdOverride = toDecimal(projectThresholds.specQuality);
+          } else if (options.rubric === "plan-quality") {
+            thresholdOverride = toDecimal(projectThresholds.planQuality);
+          }
+        }
+      }
+
+      const result = await runSingleFileEval(options.file, options.rubric, projectPath, thresholdOverride);
 
       if (options.json) {
         console.log(JSON.stringify({
           results: [result],
           passed: result.passed ? 1 : 0,
           failed: result.passed ? 0 : 1,
+          threshold: result.threshold,
         }, null, 2));
       } else {
+        const thresholdPct = ((result.threshold ?? 0.8) * 100).toFixed(0);
         console.log(`Score: ${((result.score ?? 0) * 100).toFixed(0)}%`);
+        console.log(`Threshold: ${thresholdPct}%`);
         console.log(`Status: ${result.passed ? "PASSED" : "FAILED"}`);
         console.log(`\n${result.output}`);
       }
@@ -523,6 +566,7 @@ export function evalCommand(program: Command): void {
     .option("--output <file>", "Write report to file")
     .option("--file <file>", "Evaluate a single file")
     .option("--rubric <rubric>", "Rubric to use for single file evaluation (e.g., spec-quality, plan-quality)")
+    .option("--threshold <number>", "Override quality threshold (e.g., 80 or 0.8)")
     .action(runEvalsCommand);
 
   eval_

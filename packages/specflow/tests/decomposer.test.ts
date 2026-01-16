@@ -48,52 +48,173 @@ Here are the features:
 
       expect(() => parseDecompositionOutput(output)).toThrow("Could not find JSON array");
     });
+
+    it("should parse rich decomposition fields", () => {
+      const output = `
+\`\`\`json
+[
+  {
+    "id": "F-1",
+    "name": "Batch Feature",
+    "description": "Feature with rich decomposition",
+    "dependencies": [],
+    "priority": 1,
+    "problemType": "manual_workaround",
+    "urgency": "blocking_work",
+    "primaryUser": "developers",
+    "integrationScope": "standalone"
+  }
+]
+\`\`\`
+`;
+
+      const features = parseDecompositionOutput(output);
+
+      expect(features).toHaveLength(1);
+      expect(features[0].problemType).toBe("manual_workaround");
+      expect(features[0].urgency).toBe("blocking_work");
+      expect(features[0].primaryUser).toBe("developers");
+      expect(features[0].integrationScope).toBe("standalone");
+    });
+
+    it("should parse optional rich fields when present", () => {
+      const output = `
+\`\`\`json
+[
+  {
+    "id": "F-1",
+    "name": "Feature",
+    "description": "Desc",
+    "dependencies": [],
+    "priority": 1,
+    "problemType": "impossible",
+    "urgency": "user_demand",
+    "primaryUser": "end_users",
+    "integrationScope": "external_apis",
+    "usageContext": "daily",
+    "dataRequirements": "new_model",
+    "performanceRequirements": "realtime",
+    "priorityTradeoff": "ux"
+  }
+]
+\`\`\`
+`;
+
+      const features = parseDecompositionOutput(output);
+
+      expect(features[0].usageContext).toBe("daily");
+      expect(features[0].dataRequirements).toBe("new_model");
+      expect(features[0].performanceRequirements).toBe("realtime");
+      expect(features[0].priorityTradeoff).toBe("ux");
+    });
+
+    it("should parse uncertainties and clarificationNeeded", () => {
+      const output = `
+\`\`\`json
+[
+  {
+    "id": "F-1",
+    "name": "Feature",
+    "description": "Desc",
+    "dependencies": [],
+    "priority": 1,
+    "problemType": "scattered",
+    "urgency": "growing_pain",
+    "primaryUser": "admins",
+    "integrationScope": "multiple_integrations",
+    "uncertainties": ["performanceRequirements", "dataRequirements"],
+    "clarificationNeeded": "Need to clarify data sources"
+  }
+]
+\`\`\`
+`;
+
+      const features = parseDecompositionOutput(output);
+
+      expect(features[0].uncertainties).toContain("performanceRequirements");
+      expect(features[0].uncertainties).toContain("dataRequirements");
+      expect(features[0].clarificationNeeded).toBe("Need to clarify data sources");
+    });
+
+    it("should ignore invalid enum values for rich fields", () => {
+      const output = `
+\`\`\`json
+[
+  {
+    "id": "F-1",
+    "name": "Feature",
+    "description": "Desc",
+    "dependencies": [],
+    "priority": 1,
+    "problemType": "invalid_type",
+    "urgency": "not_a_real_value"
+  }
+]
+\`\`\`
+`;
+
+      const features = parseDecompositionOutput(output);
+
+      expect(features[0].problemType).toBeUndefined();
+      expect(features[0].urgency).toBeUndefined();
+    });
   });
 
   describe("validateDecomposedFeatures", () => {
     it("should pass for valid features", () => {
+      // Must have at least 3 features (hard floor)
       const features: DecomposedFeature[] = [
         { id: "F-1", name: "Test", description: "Desc", dependencies: [], priority: 1 },
         { id: "F-2", name: "Test2", description: "Desc2", dependencies: ["F-1"], priority: 2 },
+        { id: "F-3", name: "Test3", description: "Desc3", dependencies: [], priority: 3 },
       ];
 
-      const errors = validateDecomposedFeatures(features);
+      // Set minFeatures to 3 to match hard floor
+      const errors = validateDecomposedFeatures(features, { minFeatures: 3 });
 
       expect(errors).toHaveLength(0);
     });
 
     it("should detect missing required fields", () => {
+      // Must have at least 3 features - include the invalid one plus 2 valid ones
       const features = [
         { id: "F-1", name: "", description: "Desc", dependencies: [], priority: 1 },
+        { id: "F-2", name: "Valid1", description: "Desc2", dependencies: [], priority: 2 },
+        { id: "F-3", name: "Valid2", description: "Desc3", dependencies: [], priority: 3 },
       ] as DecomposedFeature[];
 
-      const errors = validateDecomposedFeatures(features);
+      const errors = validateDecomposedFeatures(features, { minFeatures: 3 });
 
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0]).toContain("name");
+      expect(errors.some(e => e.includes("name"))).toBe(true);
     });
 
     it("should detect duplicate IDs", () => {
+      // Must have at least 3 features - include duplicates plus one more
       const features: DecomposedFeature[] = [
         { id: "F-1", name: "Test1", description: "Desc", dependencies: [], priority: 1 },
         { id: "F-1", name: "Test2", description: "Desc", dependencies: [], priority: 2 },
+        { id: "F-3", name: "Test3", description: "Desc", dependencies: [], priority: 3 },
       ];
 
-      const errors = validateDecomposedFeatures(features);
+      const errors = validateDecomposedFeatures(features, { minFeatures: 3 });
 
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0]).toContain("Duplicate");
+      expect(errors.some(e => e.includes("Duplicate"))).toBe(true);
     });
 
     it("should detect invalid dependency references", () => {
+      // Must have at least 3 features - include invalid dependency plus 2 more valid
       const features: DecomposedFeature[] = [
         { id: "F-1", name: "Test", description: "Desc", dependencies: ["F-99"], priority: 1 },
+        { id: "F-2", name: "Test2", description: "Desc2", dependencies: [], priority: 2 },
+        { id: "F-3", name: "Test3", description: "Desc3", dependencies: [], priority: 3 },
       ];
 
-      const errors = validateDecomposedFeatures(features);
+      const errors = validateDecomposedFeatures(features, { minFeatures: 3 });
 
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0]).toContain("F-99");
+      expect(errors.some(e => e.includes("F-99"))).toBe(true);
     });
   });
 

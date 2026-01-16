@@ -2,6 +2,11 @@
 project: "[PROJECT_NAME]"
 created: "[DATE]"
 inherits: "PAI CORE CONSTITUTION"
+quality-thresholds:
+  spec-quality: 80
+  plan-quality: 80
+  quick-start-quality: 60
+autoChain: prompt
 ---
 
 # Project Constitution: [PROJECT_NAME]

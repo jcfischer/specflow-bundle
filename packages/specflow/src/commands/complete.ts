@@ -24,9 +24,11 @@ import {
   getDbPath,
   dbExists,
 } from "../lib/database";
+import { runDoctorowGate, isDoctorowVerified } from "../lib/doctorow";
 
 export interface CompleteCommandOptions {
   force?: boolean;
+  skipDoctorow?: boolean;
 }
 
 /**
@@ -326,6 +328,32 @@ export async function completeCommand(
       );
       console.log(`  ✓ All tests pass`);
       console.log("");
+    }
+
+    // Run Doctorow Gate (unless force is used)
+    if (!options.force) {
+      // Check if already verified
+      if (isDoctorowVerified(feature.specPath)) {
+        console.log("✓ Doctorow Gate previously verified");
+      } else {
+        const doctorowResult = await runDoctorowGate(
+          featureId,
+          feature.specPath,
+          options.skipDoctorow ?? false
+        );
+
+        if (!doctorowResult.passed && !doctorowResult.skipped) {
+          console.error(`\n✗ Doctorow Gate failed on: ${doctorowResult.failedCheck}`);
+          console.error("  Address the concern and try again, or use --skip-doctorow to bypass.");
+          process.exit(1);
+        }
+
+        if (doctorowResult.skipped) {
+          console.warn("\n⚠ Doctorow Gate skipped - consider reviewing before production use");
+        } else {
+          console.log("\n✓ Doctorow Gate passed");
+        }
+      }
     }
 
     // Mark as complete

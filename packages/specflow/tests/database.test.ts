@@ -8,6 +8,7 @@ import {
   getNextFeature,
   addFeature,
   updateFeatureStatus,
+  updateFeatureQuickStart,
   skipFeature,
   resetFeature,
   getStats,
@@ -245,6 +246,30 @@ describe("Database", () => {
       const stats = getStats();
       expect(stats.total).toBe(0);
       expect(stats.percentComplete).toBe(0);
+    });
+  });
+
+  describe("updateFeatureQuickStart", () => {
+    it("should set quick_start flag to true", () => {
+      initDatabase(TEST_DB_PATH);
+      addFeature({ id: "F-1", name: "Test", description: "Desc", priority: 1 });
+
+      updateFeatureQuickStart("F-1", true);
+
+      const feature = getFeature("F-1");
+      // Note: quick_start is stored as INTEGER in SQLite (0/1)
+      expect(feature?.quickStart).toBe(true);
+    });
+
+    it("should set quick_start flag to false", () => {
+      initDatabase(TEST_DB_PATH);
+      addFeature({ id: "F-1", name: "Test", description: "Desc", priority: 1 });
+
+      updateFeatureQuickStart("F-1", true);
+      updateFeatureQuickStart("F-1", false);
+
+      const feature = getFeature("F-1");
+      expect(feature?.quickStart).toBe(false);
     });
   });
 

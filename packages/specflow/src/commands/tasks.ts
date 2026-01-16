@@ -6,6 +6,7 @@
 import { join } from "path";
 import { existsSync, readFileSync } from "fs";
 import { spawn } from "child_process";
+import { createInterface } from "readline";
 import {
   initDatabase,
   closeDatabase,
@@ -15,9 +16,16 @@ import {
   dbExists,
 } from "../lib/database";
 import type { Feature } from "../types";
+import {
+  getAutoChainConfig,
+  getAutoChainDescription,
+  type AutoChainMode,
+} from "../lib/autochain";
 
 export interface TasksCommandOptions {
   dryRun?: boolean;
+  /** Auto-chain mode override from CLI: 'always' | 'never' */
+  autoChain?: string;
 }
 
 /**
@@ -71,10 +79,14 @@ export async function tasksCommand(
       process.exit(1);
     }
 
+    // Get auto-chain configuration for display
+    const autoChainConfig = getAutoChainConfig(options.autoChain, projectPath);
+
     console.log(`\n📝 Starting TASKS phase for: ${feature.id} - ${feature.name}\n`);
+    console.log(`Auto-chain: ${getAutoChainDescription(autoChainConfig)}`);
 
     if (options.dryRun) {
-      console.log("[DRY RUN] Would invoke SpecFlow tasks for this feature");
+      console.log("\n[DRY RUN] Would invoke SpecFlow tasks for this feature");
       return;
     }
 
@@ -98,7 +110,18 @@ export async function tasksCommand(
         console.log("\n─".repeat(60));
         console.log(`\n✓ TASKS phase complete for ${featureId}`);
         console.log(`  Tasks created: ${tasksFile}`);
-        console.log("\nNext: Run 'specflow next --feature " + featureId + "' to get the implementation prompt");
+
+        // Handle auto-chaining (using config declared earlier)
+        const shouldChain = await handleAutoChain(autoChainConfig.mode, featureId);
+
+        if (shouldChain) {
+          console.log("\n🔗 Chaining to implementation...\n");
+          // Note: The actual implementation command would be called here
+          // For now, we just indicate what would happen
+          console.log(`Next: Run 'specflow implement ${featureId}' to start implementation`);
+        } else {
+          console.log("\nTasks ready. Run 'specflow next --feature " + featureId + "' to get the implementation prompt");
+        }
       } else {
         console.log("\n⚠ Claude finished but tasks.md was not created");
         updateFeaturePhase(featureId, "plan");
@@ -110,6 +133,42 @@ export async function tasksCommand(
   } finally {
     closeDatabase();
   }
+}
+
+/**
+ * Handle auto-chain logic based on mode
+ * @returns true if should chain to implementation
+ */
+async function handleAutoChain(mode: AutoChainMode, featureId: string): Promise<boolean> {
+  switch (mode) {
+    case "always":
+      return true;
+
+    case "never":
+      return false;
+
+    case "prompt":
+      return await askUserToChain(featureId);
+  }
+}
+
+/**
+ * Ask user if they want to chain to implementation
+ */
+async function askUserToChain(featureId: string): Promise<boolean> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`\nStart implementation for ${featureId} now? [Y/n] `, (answer) => {
+      rl.close();
+      // Default to yes if user just presses enter
+      const normalized = answer.trim().toLowerCase();
+      resolve(normalized === "" || normalized === "y" || normalized === "yes");
+    });
+  });
 }
 
 function buildTasksPrompt(feature: Feature, specContent: string, planContent: string): string {

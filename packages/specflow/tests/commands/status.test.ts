@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { spawnSync } from "child_process";
 import { join } from "path";
-import { unlinkSync, existsSync, mkdirSync, rmSync } from "fs";
+import { existsSync, mkdirSync, rmSync } from "fs";
 import {
   initDatabase,
   closeDatabase,
   addFeature,
   updateFeatureStatus,
+  updateFeatureQuickStart,
   skipFeature,
   SPECFLOW_DIR,
   DB_FILENAME,
@@ -116,5 +117,52 @@ describe("status command", () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain("1 skipped");
+  });
+
+  // ===========================================================================
+  // Quick-Start Indicator Tests (T-8.3)
+  // ===========================================================================
+
+  it("should show quick-start indicator ⚡ for quick-start features", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "Normal Feature", description: "Desc", priority: 1 });
+    addFeature({ id: "F-2", name: "Quick Feature", description: "Desc", priority: 2 });
+    updateFeatureQuickStart("F-2", true);
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["status"]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("⚡");
+    expect(stdout).toContain("Quick Feature");
+  });
+
+  it("should not show quick-start indicator for normal features", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "Normal Feature", description: "Desc", priority: 1 });
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["status"]);
+
+    expect(exitCode).toBe(0);
+    // Count occurrences of ⚡ in output - should be none in the feature rows
+    const featureLines = stdout.split("\n").filter(line => line.includes("F-1"));
+    expect(featureLines.some(line => line.includes("⚡"))).toBe(false);
+  });
+
+  it("should include quickStart in JSON output", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "Feature 1", description: "Desc", priority: 1 });
+    addFeature({ id: "F-2", name: "Feature 2", description: "Desc", priority: 2 });
+    updateFeatureQuickStart("F-2", true);
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["status", "--json"]);
+
+    expect(exitCode).toBe(0);
+    const json = JSON.parse(stdout);
+    expect(json.features).toHaveLength(2);
+    expect(json.features[0].quickStart).toBe(false);
+    expect(json.features[1].quickStart).toBe(true);
   });
 });

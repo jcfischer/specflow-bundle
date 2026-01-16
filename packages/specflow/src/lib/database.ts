@@ -6,7 +6,21 @@
 import { Database } from "bun:sqlite";
 import { join } from "path";
 import { existsSync, mkdirSync, renameSync } from "fs";
-import type { Feature, FeatureStatus, FeatureStats, SpecPhase } from "../types";
+import type {
+  Feature,
+  FeatureStatus,
+  FeatureStats,
+  SpecPhase,
+  ProblemType,
+  UrgencyType,
+  PrimaryUserType,
+  IntegrationScopeType,
+  UsageContextType,
+  DataRequirementsType,
+  PerformanceRequirementsType,
+  PriorityTradeoffType,
+} from "../types";
+import { runPendingMigrations } from "./migrations";
 
 // =============================================================================
 // Module State
@@ -179,6 +193,12 @@ export function initDatabase(dbPath: string): Database {
     )
   `);
 
+  // Run pending migrations (migrations are stored with the SpecFlow package)
+  const migrationsDir = join(import.meta.dir, "..", "..", "migrations");
+  if (existsSync(migrationsDir)) {
+    runPendingMigrations(db, migrationsDir);
+  }
+
   return db;
 }
 
@@ -218,6 +238,18 @@ export interface AddFeatureInput {
   specPath?: string;
   /** Original ID from SpecFlow registry (for migration) */
   migratedFrom?: string;
+
+  // Rich decomposition fields (for batch mode)
+  problemType?: ProblemType;
+  urgency?: UrgencyType;
+  primaryUser?: PrimaryUserType;
+  integrationScope?: IntegrationScopeType;
+  usageContext?: UsageContextType;
+  dataRequirements?: DataRequirementsType;
+  performanceRequirements?: PerformanceRequirementsType;
+  priorityTradeoff?: PriorityTradeoffType;
+  uncertainties?: string[];
+  clarificationNeeded?: string;
 }
 
 /**
@@ -227,10 +259,37 @@ export function addFeature(input: AddFeatureInput): void {
   const db = getDb();
   const now = new Date().toISOString();
 
+  // Serialize uncertainties array to JSON if present
+  const uncertaintiesJson = input.uncertainties
+    ? JSON.stringify(input.uncertainties)
+    : null;
+
   db.run(
-    `INSERT INTO features (id, name, description, priority, spec_path, created_at, migrated_from)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [input.id, input.name, input.description, input.priority, input.specPath ?? null, now, input.migratedFrom ?? null]
+    `INSERT INTO features (
+      id, name, description, priority, spec_path, created_at, migrated_from,
+      problem_type, urgency, primary_user, integration_scope,
+      usage_context, data_requirements, performance_requirements, priority_tradeoff,
+      uncertainties, clarification_needed
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      input.id,
+      input.name,
+      input.description,
+      input.priority,
+      input.specPath ?? null,
+      now,
+      input.migratedFrom ?? null,
+      input.problemType ?? null,
+      input.urgency ?? null,
+      input.primaryUser ?? null,
+      input.integrationScope ?? null,
+      input.usageContext ?? null,
+      input.dataRequirements ?? null,
+      input.performanceRequirements ?? null,
+      input.priorityTradeoff ?? null,
+      uncertaintiesJson,
+      input.clarificationNeeded ?? null,
+    ]
   );
 }
 
@@ -444,6 +503,96 @@ export function updateFeatureDescription(id: string, description: string): void 
   db.run(`UPDATE features SET description = ? WHERE id = ?`, [description, id]);
 }
 
+/**
+ * Update a feature's quick_start flag
+ */
+export function updateFeatureQuickStart(id: string, quickStart: boolean): void {
+  const db = getDb();
+  db.run(`UPDATE features SET quick_start = ? WHERE id = ?`, [quickStart ? 1 : 0, id]);
+}
+
+/**
+ * Input for updating decomposition fields
+ */
+export interface UpdateDecompositionInput {
+  problemType?: ProblemType;
+  urgency?: UrgencyType;
+  primaryUser?: PrimaryUserType;
+  integrationScope?: IntegrationScopeType;
+  usageContext?: UsageContextType;
+  dataRequirements?: DataRequirementsType;
+  performanceRequirements?: PerformanceRequirementsType;
+  priorityTradeoff?: PriorityTradeoffType;
+  uncertainties?: string[];
+  clarificationNeeded?: string;
+}
+
+/**
+ * Update a feature's decomposition fields (for enrich command)
+ * Only updates fields that are provided (non-undefined)
+ */
+export function updateFeatureDecomposition(
+  id: string,
+  input: UpdateDecompositionInput
+): void {
+  const db = getDb();
+
+  // Build dynamic update query
+  const updates: string[] = [];
+  const values: (string | null)[] = [];
+
+  if (input.problemType !== undefined) {
+    updates.push("problem_type = ?");
+    values.push(input.problemType);
+  }
+  if (input.urgency !== undefined) {
+    updates.push("urgency = ?");
+    values.push(input.urgency);
+  }
+  if (input.primaryUser !== undefined) {
+    updates.push("primary_user = ?");
+    values.push(input.primaryUser);
+  }
+  if (input.integrationScope !== undefined) {
+    updates.push("integration_scope = ?");
+    values.push(input.integrationScope);
+  }
+  if (input.usageContext !== undefined) {
+    updates.push("usage_context = ?");
+    values.push(input.usageContext);
+  }
+  if (input.dataRequirements !== undefined) {
+    updates.push("data_requirements = ?");
+    values.push(input.dataRequirements);
+  }
+  if (input.performanceRequirements !== undefined) {
+    updates.push("performance_requirements = ?");
+    values.push(input.performanceRequirements);
+  }
+  if (input.priorityTradeoff !== undefined) {
+    updates.push("priority_tradeoff = ?");
+    values.push(input.priorityTradeoff);
+  }
+  if (input.uncertainties !== undefined) {
+    updates.push("uncertainties = ?");
+    values.push(JSON.stringify(input.uncertainties));
+  }
+  if (input.clarificationNeeded !== undefined) {
+    updates.push("clarification_needed = ?");
+    values.push(input.clarificationNeeded);
+  }
+
+  if (updates.length === 0) {
+    return; // Nothing to update
+  }
+
+  values.push(id);
+  db.run(
+    `UPDATE features SET ${updates.join(", ")} WHERE id = ?`,
+    values
+  );
+}
+
 // =============================================================================
 // Statistics
 // =============================================================================
@@ -504,6 +653,18 @@ interface FeatureRow {
   started_at: string | null;
   completed_at: string | null;
   migrated_from: string | null;
+  quick_start: number | null;
+  // Rich decomposition fields
+  problem_type: string | null;
+  urgency: string | null;
+  primary_user: string | null;
+  integration_scope: string | null;
+  usage_context: string | null;
+  data_requirements: string | null;
+  performance_requirements: string | null;
+  priority_tradeoff: string | null;
+  uncertainties: string | null;
+  clarification_needed: string | null;
 }
 
 interface StatsRow {
@@ -515,6 +676,16 @@ interface StatsRow {
 }
 
 function rowToFeature(row: FeatureRow): Feature {
+  // Parse uncertainties JSON array if present
+  let uncertainties: string[] | undefined;
+  if (row.uncertainties) {
+    try {
+      uncertainties = JSON.parse(row.uncertainties);
+    } catch {
+      uncertainties = undefined;
+    }
+  }
+
   return {
     id: row.id,
     name: row.name,
@@ -527,5 +698,17 @@ function rowToFeature(row: FeatureRow): Feature {
     startedAt: row.started_at ? new Date(row.started_at) : null,
     completedAt: row.completed_at ? new Date(row.completed_at) : null,
     migratedFrom: row.migrated_from,
+    quickStart: row.quick_start === 1,
+    // Rich decomposition fields
+    problemType: row.problem_type as ProblemType | undefined,
+    urgency: row.urgency as UrgencyType | undefined,
+    primaryUser: row.primary_user as PrimaryUserType | undefined,
+    integrationScope: row.integration_scope as IntegrationScopeType | undefined,
+    usageContext: row.usage_context as UsageContextType | undefined,
+    dataRequirements: row.data_requirements as DataRequirementsType | undefined,
+    performanceRequirements: row.performance_requirements as PerformanceRequirementsType | undefined,
+    priorityTradeoff: row.priority_tradeoff as PriorityTradeoffType | undefined,
+    uncertainties,
+    clarificationNeeded: row.clarification_needed ?? undefined,
   };
 }

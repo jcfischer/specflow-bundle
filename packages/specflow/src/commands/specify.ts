@@ -16,13 +16,32 @@ import {
   getFeature,
   updateFeaturePhase,
   updateFeatureSpecPath,
+  updateFeatureQuickStart,
   getDbPath,
   dbExists,
 } from "../lib/database";
-import type { Feature } from "../types";
+import { loadThresholds, toDecimal, formatThreshold } from "../lib/threshold";
+import {
+  buildProgressivePrompt,
+  getInterviewIntro,
+  DEFAULT_INTERVIEW_CONFIG,
+  QUICK_INTERVIEW_CONFIG,
+} from "../lib/interview";
+import { getRubric } from "../lib/eval";
+import { generateActionableFeedback, formatFeedbackReport } from "../lib/feedback";
+import {
+  validateBatchReady,
+  formatBatchErrors,
+  buildBatchPrompt,
+  generateClarificationFile,
+  writeClarificationFile,
+} from "../lib/batch";
+import type { DecomposedFeature } from "../types";
 
 export interface SpecifyCommandOptions {
   dryRun?: boolean;
+  quick?: boolean;
+  batch?: boolean;
 }
 
 /**
@@ -59,6 +78,24 @@ export async function specifyCommand(
       return;
     }
 
+    // Batch mode validation
+    if (options.batch) {
+      // Cast feature to include decomposition fields for validation
+      const decomposedFeature = feature as unknown as DecomposedFeature;
+      const batchValidation = validateBatchReady(decomposedFeature);
+
+      if (!batchValidation.ready) {
+        console.error(formatBatchErrors(featureId, batchValidation));
+        process.exit(1);
+      }
+
+      // Warn about uncertainties (will be marked in spec)
+      if (batchValidation.uncertainFields.length > 0) {
+        console.log(`\n⚠ Feature has ${batchValidation.uncertainFields.length} uncertain field(s).`);
+        console.log("  These will be marked with [TO BE CLARIFIED] in the spec.\n");
+      }
+    }
+
     // Create spec directory
     const specDirName = `${featureId.toLowerCase()}-${slugify(feature.name)}`;
     const specPath = join(projectPath, ".specify", "specs", specDirName);
@@ -67,11 +104,23 @@ export async function specifyCommand(
       mkdirSync(specPath, { recursive: true });
     }
 
+    // Determine interview configuration
+    const interviewConfig = options.quick
+      ? QUICK_INTERVIEW_CONFIG
+      : DEFAULT_INTERVIEW_CONFIG;
+
     console.log(`\n📋 Starting SPECIFY phase for: ${feature.id} - ${feature.name}\n`);
+    if (options.batch) {
+      console.log("🔄 Batch mode: Non-interactive specification from rich decomposition");
+    } else if (options.quick) {
+      console.log("⚡ Quick mode: Essential questions only from phases 1-3");
+    }
     console.log(`Spec directory: ${specPath}`);
 
     if (options.dryRun) {
       console.log("\n[DRY RUN] Would invoke SpecFlow interview for this feature");
+      console.log("\nInterview intro:");
+      console.log(getInterviewIntro(feature, interviewConfig));
       return;
     }
 
@@ -81,12 +130,31 @@ export async function specifyCommand(
       ? readFileSync(appContextPath, "utf-8")
       : null;
 
-    // Build the prompt for Claude to run SpecFlow specify
-    const prompt = buildSpecifyPrompt(feature, specPath, appContext);
+    // Build the prompt based on mode (batch vs interactive)
+    let prompt: string;
+    if (options.batch) {
+      // Batch mode: use rich decomposition data instead of interview
+      const decomposedFeature = feature as unknown as DecomposedFeature;
+      const batchFeature = { ...feature, ...decomposedFeature };
+      prompt = buildBatchPrompt(batchFeature, specPath, appContext);
+
+      // Generate clarification file if there are uncertainties
+      if (decomposedFeature.uncertainties && decomposedFeature.uncertainties.length > 0) {
+        const clarification = generateClarificationFile(decomposedFeature);
+        const clarificationPath = writeClarificationFile(clarification, specPath);
+        console.log(`📝 Clarification file: ${clarificationPath}`);
+      }
+    } else {
+      // Interactive mode: use progressive interview
+      prompt = buildProgressivePrompt(feature, interviewConfig, specPath, appContext);
+    }
 
     // Update phase to specify (in progress)
     updateFeaturePhase(featureId, "specify");
     updateFeatureSpecPath(featureId, specPath);
+    if (options.quick) {
+      updateFeatureQuickStart(featureId, true);
+    }
 
     // Run Claude with the prompt
     console.log("\nInvoking Claude with SpecFlow specify workflow...\n");
@@ -101,18 +169,43 @@ export async function specifyCommand(
         console.log("\n─".repeat(60));
         console.log(`\n📝 Spec created: ${specFile}`);
 
+        // Load configurable thresholds
+        const thresholds = loadThresholds(projectPath);
+        // Use quick-start threshold if in quick mode
+        const threshold = options.quick ? thresholds.quickStartQuality : thresholds.specQuality;
+        const thresholdDecimal = toDecimal(threshold);
+
         // Run quality gate eval
         console.log("\n🔍 Running spec quality evaluation...\n");
-        const evalResult = await runSpecEval(specFile, projectPath);
+        if (options.quick) {
+          console.log(`   ⚡ Quick-start threshold: ${formatThreshold(threshold)} (vs ${formatThreshold(thresholds.specQuality)} standard)`);
+        } else if (thresholds.source === "constitution") {
+          console.log(`   Using threshold from constitution: ${formatThreshold(threshold)}`);
+        }
+        const evalResult = await runSpecEval(specFile, projectPath, thresholdDecimal);
 
         if (evalResult.passed) {
-          console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}%)`);
+          console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}% >= ${formatThreshold(threshold)})`);
           console.log(`\n✓ SPECIFY phase complete for ${featureId}`);
           console.log("\nNext: Run 'specflow plan " + featureId + "' for technical planning");
         } else {
-          console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < 80%)`);
-          console.log("\nFeedback:");
-          console.log(evalResult.feedback);
+          // Generate actionable feedback for quality gate failure
+          try {
+            const rubricsDir = join(projectPath, ".specify", "rubrics");
+            const rubric = await getRubric("spec-quality", rubricsDir);
+            const gradeResult = {
+              passed: evalResult.passed,
+              score: evalResult.score,
+              output: evalResult.feedback,
+            };
+            const feedbackReport = generateActionableFeedback(gradeResult, rubric);
+            console.log("\n" + formatFeedbackReport(feedbackReport));
+          } catch {
+            // Fallback to raw feedback if rubric loading fails
+            console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < ${formatThreshold(threshold)})`);
+            console.log("\nFeedback:");
+            console.log(evalResult.feedback);
+          }
           console.log("\n─".repeat(60));
           console.log("\nThe spec has quality issues. Review the feedback above.");
           console.log("To revise: edit the spec and run 'specflow eval run --file " + specFile + "'");
@@ -131,56 +224,6 @@ export async function specifyCommand(
   } finally {
     closeDatabase();
   }
-}
-
-/**
- * Build the prompt for SpecFlow specify phase
- */
-function buildSpecifyPrompt(feature: Feature, specPath: string, appContext: string | null): string {
-  const contextSection = appContext
-    ? `## App Context (from init interview)
-
-${appContext}
-
-**IMPORTANT:** The app-level interview has already been conducted. DO NOT re-interview the user.
-Use the context above to inform this feature's specification. Only ask clarifying questions
-if something specific to THIS FEATURE is unclear.
-
-`
-    : `## Note
-
-No app-context.md found. You may ask clarifying questions about this feature.
-
-`;
-
-  return `You are running SpecFlow's SPECIFY phase for a feature.
-
-## Feature to Specify
-
-**ID:** ${feature.id}
-**Name:** ${feature.name}
-**Description:** ${feature.description}
-
-${contextSection}## Your Task
-
-Create a detailed specification for this feature:
-
-1. **Create the Specification** at: ${specPath}/spec.md
-
-   The spec.md should contain:
-   - Overview (brief description)
-   - User scenarios with Given/When/Then acceptance criteria
-   - Functional requirements (FR-1, FR-2, etc.)
-   - Non-functional requirements (if applicable)
-   - Success criteria
-   - Assumptions (if any)
-
-2. **DO NOT include** implementation details, technology choices, or code
-
-3. When complete, confirm by outputting:
-   [PHASE COMPLETE: SPECIFY]
-   Feature: ${feature.id}
-   Spec: ${specPath}/spec.md`;
 }
 
 /**
@@ -235,24 +278,36 @@ async function runClaude(
 
 /**
  * Run spec quality evaluation
+ * @param specFile - Path to spec file to evaluate
+ * @param projectPath - Path to project root
+ * @param threshold - Optional threshold override (0-1 decimal)
  */
 async function runSpecEval(
   specFile: string,
-  projectPath: string
+  projectPath: string,
+  threshold?: number
 ): Promise<{ passed: boolean; score: number; feedback: string }> {
   return new Promise((resolve) => {
+    // Build arguments for specflow eval
+    const args = [
+      "eval",
+      "run",
+      "--file",
+      specFile,
+      "--rubric",
+      "spec-quality",
+      "--json",
+    ];
+
+    // Add threshold override if provided
+    if (threshold !== undefined) {
+      args.push("--threshold", threshold.toString());
+    }
+
     // Run specflow eval with the spec file and spec-quality rubric
     const proc = spawn(
       "specflow",
-      [
-        "eval",
-        "run",
-        "--file",
-        specFile,
-        "--rubric",
-        "spec-quality",
-        "--json",
-      ],
+      args,
       {
         cwd: projectPath,
         stdio: ["inherit", "pipe", "pipe"],
@@ -271,7 +326,7 @@ async function runSpecEval(
       stderr += data.toString();
     });
 
-    proc.on("close", (code) => {
+    proc.on("close", (_code) => {
       try {
         // Try to parse JSON output
         const result = JSON.parse(output);

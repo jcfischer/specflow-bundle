@@ -25,6 +25,10 @@ import { removeCommand } from "./commands/remove";
 import { editCommand } from "./commands/edit";
 import { evalCommand } from "./commands/eval";
 import { migrateRegistryCommand } from "./commands/migrate-registry";
+import { migrateCommand } from "./commands/migrate";
+import { reviseCommand } from "./commands/revise";
+import { specifyAllCommand } from "./commands/specify-all";
+import { enrichCommand } from "./commands/enrich";
 
 // =============================================================================
 // Main Program
@@ -97,7 +101,8 @@ program
   .description("Mark a feature as complete (validates spec.md, plan.md, tasks.md)")
   .argument("<feature-id>", "Feature ID to mark complete (e.g., F-1)")
   .option("--force", "Bypass validation (not recommended)")
-  .action((featureId, options) => completeCommand(featureId, { force: options.force }));
+  .option("--skip-doctorow", "Skip the Doctorow Gate checklist")
+  .action((featureId, options) => completeCommand(featureId, { force: options.force, skipDoctorow: options.skipDoctorow }));
 
 program
   .command("validate")
@@ -125,7 +130,33 @@ program
   .description("Create detailed specification for a feature (SPECIFY phase)")
   .argument("<feature-id>", "Feature ID to specify (e.g., F-1)")
   .option("--dry-run", "Show what would happen without executing")
-  .action(specifyCommand);
+  .option("--quick", "Quick-start mode: essential questions only, 60% threshold")
+  .option("--batch", "Batch mode: non-interactive spec from rich decomposition data")
+  .action((featureId, options) => specifyCommand(featureId, { dryRun: options.dryRun, quick: options.quick, batch: options.batch }));
+
+program
+  .command("specify-all")
+  .description("Run batch specification for all pending features in parallel")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--concurrency <n>", "Number of parallel processes", "4")
+  .action((options) => specifyAllCommand({ dryRun: options.dryRun, concurrency: parseInt(options.concurrency, 10) }));
+
+program
+  .command("enrich")
+  .description("Add missing decomposition fields to enable batch mode")
+  .argument("<feature-id>", "Feature ID to enrich (e.g., F-1)")
+  .option("--problem-type <type>", "Problem type (manual_workaround, impossible, scattered, quality_issues)")
+  .option("--urgency <type>", "Urgency type (external_deadline, growing_pain, blocking_work, user_demand)")
+  .option("--primary-user <type>", "Primary user (developers, end_users, admins, mixed)")
+  .option("--integration-scope <type>", "Integration scope (standalone, extends_existing, multiple_integrations, external_apis)")
+  .option("--json", "Output as JSON")
+  .action((featureId, options) => enrichCommand(featureId, {
+    problemType: options.problemType,
+    urgency: options.urgency,
+    primaryUser: options.primaryUser,
+    integrationScope: options.integrationScope,
+    json: options.json,
+  }));
 
 program
   .command("plan")
@@ -148,6 +179,25 @@ program
   .option("--all", "Reset all features to pending")
   .action(resetCommand);
 
+program
+  .command("revise")
+  .description("Revise a spec/plan/tasks artifact based on feedback")
+  .argument("<feature-id>", "Feature ID to revise (e.g., F-1)")
+  .option("--spec", "Revise the spec.md artifact")
+  .option("--plan", "Revise the plan.md artifact")
+  .option("--tasks", "Revise the tasks.md artifact")
+  .option("--feedback <text>", "Feedback to incorporate")
+  .option("--dry-run", "Show what would happen without executing")
+  .option("--history", "Show revision history for this feature")
+  .action((featureId, options) => reviseCommand(featureId, {
+    spec: options.spec,
+    plan: options.plan,
+    tasks: options.tasks,
+    feedback: options.feedback,
+    dryRun: options.dryRun,
+    history: options.history,
+  }));
+
 // Register phase command (uses Commander directly for flexibility)
 phaseCommand(program);
 
@@ -166,6 +216,14 @@ program
   .option("--dry-run", "Show what would be migrated without making changes")
   .option("--registry <path>", "Path to spec-registry.json")
   .action((options) => migrateRegistryCommand({ dryRun: options.dryRun, registry: options.registry }));
+
+program
+  .command("migrate")
+  .description("Run database schema migrations")
+  .option("--status", "Show migration status without running")
+  .option("--rollback", "Rollback the last applied migration")
+  .option("--verify", "Verify migration checksums match")
+  .action((options) => migrateCommand({ status: options.status, rollback: options.rollback, verify: options.verify }));
 
 // =============================================================================
 // Parse and Execute

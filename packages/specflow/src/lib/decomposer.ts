@@ -74,7 +74,8 @@ export function parseDecompositionOutput(output: string): DecomposedFeature[] {
 
     const obj = item as Record<string, unknown>;
 
-    return {
+    // Build base feature
+    const feature: DecomposedFeature = {
       id: String(obj.id ?? `F-${index + 1}`),
       name: String(obj.name ?? ""),
       description: String(obj.description ?? ""),
@@ -83,7 +84,90 @@ export function parseDecompositionOutput(output: string): DecomposedFeature[] {
         : [],
       priority: typeof obj.priority === "number" ? obj.priority : index + 1,
     };
+
+    // Parse rich decomposition fields (required for batch mode)
+    if (isValidProblemType(obj.problemType)) {
+      feature.problemType = obj.problemType;
+    }
+    if (isValidUrgencyType(obj.urgency)) {
+      feature.urgency = obj.urgency;
+    }
+    if (isValidPrimaryUserType(obj.primaryUser)) {
+      feature.primaryUser = obj.primaryUser;
+    }
+    if (isValidIntegrationScopeType(obj.integrationScope)) {
+      feature.integrationScope = obj.integrationScope;
+    }
+
+    // Parse optional rich fields
+    if (isValidUsageContextType(obj.usageContext)) {
+      feature.usageContext = obj.usageContext;
+    }
+    if (isValidDataRequirementsType(obj.dataRequirements)) {
+      feature.dataRequirements = obj.dataRequirements;
+    }
+    if (isValidPerformanceRequirementsType(obj.performanceRequirements)) {
+      feature.performanceRequirements = obj.performanceRequirements;
+    }
+    if (isValidPriorityTradeoffType(obj.priorityTradeoff)) {
+      feature.priorityTradeoff = obj.priorityTradeoff;
+    }
+
+    // Parse uncertainty handling
+    if (Array.isArray(obj.uncertainties)) {
+      feature.uncertainties = obj.uncertainties.map(String);
+    }
+    if (typeof obj.clarificationNeeded === "string") {
+      feature.clarificationNeeded = obj.clarificationNeeded;
+    }
+
+    return feature;
   });
+}
+
+// =============================================================================
+// Type Validators
+// =============================================================================
+
+const VALID_PROBLEM_TYPES = ["manual_workaround", "impossible", "scattered", "quality_issues"] as const;
+const VALID_URGENCY_TYPES = ["external_deadline", "growing_pain", "blocking_work", "user_demand"] as const;
+const VALID_PRIMARY_USER_TYPES = ["developers", "end_users", "admins", "mixed"] as const;
+const VALID_INTEGRATION_SCOPE_TYPES = ["standalone", "extends_existing", "multiple_integrations", "external_apis"] as const;
+const VALID_USAGE_CONTEXT_TYPES = ["daily", "occasional", "one_time", "emergency"] as const;
+const VALID_DATA_REQUIREMENTS_TYPES = ["existing_only", "new_model", "external_data", "user_generated"] as const;
+const VALID_PERFORMANCE_REQUIREMENTS_TYPES = ["realtime", "interactive", "background", "none"] as const;
+const VALID_PRIORITY_TRADEOFF_TYPES = ["speed", "quality", "completeness", "ux"] as const;
+
+function isValidProblemType(value: unknown): value is typeof VALID_PROBLEM_TYPES[number] {
+  return typeof value === "string" && VALID_PROBLEM_TYPES.includes(value as typeof VALID_PROBLEM_TYPES[number]);
+}
+
+function isValidUrgencyType(value: unknown): value is typeof VALID_URGENCY_TYPES[number] {
+  return typeof value === "string" && VALID_URGENCY_TYPES.includes(value as typeof VALID_URGENCY_TYPES[number]);
+}
+
+function isValidPrimaryUserType(value: unknown): value is typeof VALID_PRIMARY_USER_TYPES[number] {
+  return typeof value === "string" && VALID_PRIMARY_USER_TYPES.includes(value as typeof VALID_PRIMARY_USER_TYPES[number]);
+}
+
+function isValidIntegrationScopeType(value: unknown): value is typeof VALID_INTEGRATION_SCOPE_TYPES[number] {
+  return typeof value === "string" && VALID_INTEGRATION_SCOPE_TYPES.includes(value as typeof VALID_INTEGRATION_SCOPE_TYPES[number]);
+}
+
+function isValidUsageContextType(value: unknown): value is typeof VALID_USAGE_CONTEXT_TYPES[number] {
+  return typeof value === "string" && VALID_USAGE_CONTEXT_TYPES.includes(value as typeof VALID_USAGE_CONTEXT_TYPES[number]);
+}
+
+function isValidDataRequirementsType(value: unknown): value is typeof VALID_DATA_REQUIREMENTS_TYPES[number] {
+  return typeof value === "string" && VALID_DATA_REQUIREMENTS_TYPES.includes(value as typeof VALID_DATA_REQUIREMENTS_TYPES[number]);
+}
+
+function isValidPerformanceRequirementsType(value: unknown): value is typeof VALID_PERFORMANCE_REQUIREMENTS_TYPES[number] {
+  return typeof value === "string" && VALID_PERFORMANCE_REQUIREMENTS_TYPES.includes(value as typeof VALID_PERFORMANCE_REQUIREMENTS_TYPES[number]);
+}
+
+function isValidPriorityTradeoffType(value: unknown): value is typeof VALID_PRIORITY_TRADEOFF_TYPES[number] {
+  return typeof value === "string" && VALID_PRIORITY_TRADEOFF_TYPES.includes(value as typeof VALID_PRIORITY_TRADEOFF_TYPES[number]);
 }
 
 // =============================================================================

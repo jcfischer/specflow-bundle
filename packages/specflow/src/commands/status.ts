@@ -78,6 +78,7 @@ function outputJson(features: Feature[], stats: FeatureStats): void {
       phase: f.phase,
       priority: f.priority,
       specPath: f.specPath,
+      quickStart: f.quickStart,
       createdAt: f.createdAt.toISOString(),
       startedAt: f.startedAt?.toISOString() ?? null,
       completedAt: f.completedAt?.toISOString() ?? null,
@@ -121,12 +122,14 @@ function outputTable(features: Feature[], stats: FeatureStats): void {
   for (const feature of features) {
     const statusIcon = getStatusIcon(feature.status);
     const phaseIcon = getPhaseIcon(feature.phase);
+    const quickIndicator = feature.quickStart ? "⚡ " : "";
+    const nameMaxLen = feature.quickStart ? 28 : 30;
     console.log(
       padRight(feature.id, 8) +
       padRight(`${statusIcon} ${feature.status}`, 14) +
       padRight(`${phaseIcon} ${feature.phase || "none"}`, 12) +
       padRight(String(feature.priority), 10) +
-      truncate(feature.name, 30)
+      quickIndicator + truncate(feature.name, nameMaxLen)
     );
   }
 

@@ -29,7 +29,11 @@ Return a JSON array of features. Each feature must have:
     "dependencies": [],
     "priority": 1,
     "reliability": 95,
-    "externalDeps": []
+    "externalDeps": [],
+    "problemType": "manual_workaround",
+    "urgency": "blocking_work",
+    "primaryUser": "developers",
+    "integrationScope": "standalone"
   },
   {
     "id": "F-2",
@@ -38,9 +42,56 @@ Return a JSON array of features. Each feature must have:
     "dependencies": ["F-1"],
     "priority": 2,
     "reliability": 90,
-    "externalDeps": ["Tana API"]
+    "externalDeps": ["Tana API"],
+    "problemType": "scattered",
+    "urgency": "user_demand",
+    "primaryUser": "end_users",
+    "integrationScope": "extends_existing"
   }
 ]
+```
+
+### Rich Decomposition Fields (Required for Batch Mode)
+
+For each feature, analyze and include these fields to enable non-interactive specification:
+
+**problemType** - What problem does this feature solve?
+- `manual_workaround`: Users do this manually but it's painful/slow
+- `impossible`: Users simply cannot do this today
+- `scattered`: Multiple tools/processes that should be unified
+- `quality_issues`: Current approach leads to errors/inconsistency
+
+**urgency** - Why is this needed now?
+- `external_deadline`: Regulation, contract, or market timing
+- `growing_pain`: Problem getting worse as usage increases
+- `blocking_work`: Can't proceed with other priorities until done
+- `user_demand`: Users explicitly requesting this
+
+**primaryUser** - Who uses this feature?
+- `developers`: Technical users building or integrating
+- `end_users`: Non-technical users of the application
+- `admins`: System administrators or operations team
+- `mixed`: Multiple user types with different needs
+
+**integrationScope** - How does it integrate?
+- `standalone`: Completely new, minimal dependencies
+- `extends_existing`: Adds to an existing feature or module
+- `multiple_integrations`: Needs to connect several systems
+- `external_apis`: Requires third-party service integration
+
+**Optional fields** (include if determinable):
+- `usageContext`: "daily" | "occasional" | "one_time" | "emergency"
+- `dataRequirements`: "existing_only" | "new_model" | "external_data" | "user_generated"
+- `performanceRequirements`: "realtime" | "interactive" | "background" | "none"
+- `priorityTradeoff`: "speed" | "quality" | "completeness" | "ux"
+
+If you cannot determine a field's value from the spec, include it in `uncertainties` array:
+```json
+{
+  "id": "F-3",
+  "uncertainties": ["primaryUser", "performanceRequirements"],
+  "clarificationNeeded": "Need to clarify whether admins or end users will trigger this"
+}
 ```
 
 ### Reliability Estimation

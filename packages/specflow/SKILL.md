@@ -236,10 +236,14 @@ The `specflow` CLI is the ONLY interface for feature management. Direct SQLite a
 | Remove feature | `specflow remove <id> [--force]` | Keeps spec files unless manually deleted |
 | Edit feature | `specflow edit <id> --name/--description/--priority` | Cannot change ID |
 | Set phase | `specflow phase <id> <phase>` | none, specify, plan, tasks, implement |
-| Create spec | `specflow specify <id>` | Creates spec.md, sets phase |
+| Create spec | `specflow specify <id> [--quick] [--batch]` | Creates spec.md, sets phase |
+| Enrich feature | `specflow enrich <id>` | Add missing batch fields interactively |
 | Create plan | `specflow plan <id>` | Creates plan.md, sets phase |
 | Create tasks | `specflow tasks <id>` | Creates tasks.md, sets phase |
-| Complete | `specflow complete <id>` | Validates artifacts + tests + verify.md |
+| Complete | `specflow complete <id>` | Validates artifacts + Doctorow Gate |
+| Complete (skip gate) | `specflow complete <id> --skip-doctorow` | Skip Doctorow Gate checklist |
+| Revise | `specflow revise <id> --spec/--plan/--tasks` | Revise artifact based on feedback |
+| Revise history | `specflow revise <id> --history` | Show revision history |
 | Reset | `specflow reset <id>` | Return to pending |
 | Skip | `specflow skip <id>` | Move to end of queue |
 | Run evals | `specflow eval run` | Run quality evaluations |
@@ -263,7 +267,31 @@ spec.md   plan.md  tasks.md   src/
 
 **Begins with Interview**: Uses structured requirements elicitation via AskUserQuestion before writing the spec.
 
-Interview covers 8 phases:
+**Quick-Start Mode** (`specflow specify F-N --quick`):
+- Reduced interview (phases 1-3 only: Problem, Users, Context)
+- Lower quality threshold (60% vs 80%)
+- Features marked with ⚡ in `specflow status`
+- Use when prototyping or time-constrained
+
+**Batch Mode** (`specflow specify F-N --batch`):
+- Non-interactive specification from rich decomposition data
+- Requires extended fields populated during decomposition (problemType, urgency, primaryUser, integrationScope)
+- Enables parallel specification of multiple features
+- Generates `.clarification.json` for uncertain fields
+- Use for greenfield projects where features can be specified in parallel
+
+```bash
+# Check if feature is batch-ready
+specflow specify F-1 --batch --dry-run
+
+# Run batch specification (no prompts)
+specflow specify F-1 --batch
+
+# If fields missing, enrich the feature first
+specflow enrich F-1
+```
+
+Interview covers 8 phases (standard mode):
 1. Problem & Pain - What we're really solving
 2. Users & Context - Who benefits and how
 3. Technical Context - What exists today
@@ -290,13 +318,18 @@ After interview, synthesizes answers into spec containing:
 
 **Output**: `.specify/specs/F-N-<feature>/spec.md`
 
-**Quality Gate**: Spec must score ≥ 80% on spec-quality rubric before proceeding.
+**Quality Gate**: Spec must score ≥ 80% on spec-quality rubric before proceeding (≥ 60% for quick-start mode).
 
 ```bash
 # Verify before proceeding
 specflow eval run --rubric spec-quality
-# If <80%, fix spec.md and re-run
+# If below threshold, actionable feedback shows:
+# - Impact levels (High/Medium/Low) for each criterion
+# - Quick wins to address first
+# - Specific recommendations
 ```
+
+**Revising Failed Specs**: Use `specflow revise F-N --spec --feedback "your feedback"` to iterate on specs that fail quality gates. Revision history is tracked for audit trail.
 
 ### Phase 2: Plan (`specflow plan F-N`)
 
@@ -379,7 +412,52 @@ Before a feature can be marked complete, `specflow complete` validates:
    - Must not contain unfilled placeholders like `[paste actual output]`
    - Proves the feature actually works end-to-end
 
-Use `--force` to bypass validation (not recommended).
+4. **Doctorow Gate** (interactive checklist):
+   - Failure test — Have you tested what happens when this feature fails?
+   - Assumption test — Have you validated your key assumptions?
+   - Rollback test — Can this feature be safely rolled back?
+   - Debt recorded — Have you documented any technical debt introduced?
+
+Use `--force` to bypass all validation (not recommended).
+Use `--skip-doctorow` to skip only the Doctorow Gate checklist.
+
+---
+
+## Artifact Revision (`specflow revise`)
+
+When quality gates fail or feedback requires changes, use the revise command to iterate on artifacts while preserving history.
+
+### Usage
+
+```bash
+# Revise spec with feedback
+specflow revise F-1 --spec --feedback "Add more specific acceptance criteria"
+
+# Revise plan
+specflow revise F-1 --plan --feedback "Address failure modes for external APIs"
+
+# Revise tasks
+specflow revise F-1 --tasks --feedback "Break down T-1.3 into smaller units"
+
+# Interactive mode (prompts for artifact and feedback)
+specflow revise F-1
+
+# View revision history
+specflow revise F-1 --history
+
+# Dry run (show what would happen)
+specflow revise F-1 --spec --feedback "test" --dry-run
+```
+
+### Revision History
+
+Every revision is tracked with:
+- Unique revision ID (for potential rollback)
+- Timestamp
+- Reason (user_request or eval_feedback)
+- Original content preserved
+
+View history: `specflow revise F-1 --history`
 
 ---
 

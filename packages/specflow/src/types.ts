@@ -48,6 +48,34 @@ export interface Feature {
   completedAt: Date | null;
   /** Original ID from SpecKit registry migration (e.g., "035") */
   migratedFrom: string | null;
+  /** Whether this feature was specified in quick mode */
+  quickStart: boolean;
+
+  // ==========================================================================
+  // Rich Decomposition Fields (for batch mode)
+  // Populated from decomposition when available
+  // ==========================================================================
+
+  /** What type of problem this solves */
+  problemType?: ProblemType;
+  /** Why this is needed now */
+  urgency?: UrgencyType;
+  /** Who uses this feature */
+  primaryUser?: PrimaryUserType;
+  /** How it integrates with existing systems */
+  integrationScope?: IntegrationScopeType;
+  /** How often the feature is used */
+  usageContext?: UsageContextType;
+  /** What data the feature needs */
+  dataRequirements?: DataRequirementsType;
+  /** Performance requirements */
+  performanceRequirements?: PerformanceRequirementsType;
+  /** What matters most for this feature */
+  priorityTradeoff?: PriorityTradeoffType;
+  /** Fields where decomposition couldn't determine a value */
+  uncertainties?: string[];
+  /** Free-form notes on what needs human input */
+  clarificationNeeded?: string;
 }
 
 // =============================================================================
@@ -115,6 +143,82 @@ export interface FeatureStats {
 // =============================================================================
 
 /**
+ * Problem type from interview question 1.1
+ * Maps to: "What specific problem does this feature solve?"
+ */
+export type ProblemType =
+  | "manual_workaround"    // Users do this manually but it's painful/slow
+  | "impossible"           // Users simply cannot do this today
+  | "scattered"            // Multiple tools/processes that should be unified
+  | "quality_issues";      // Current approach leads to errors or inconsistency
+
+/**
+ * Urgency type from interview question 1.2
+ * Maps to: "Why is solving this problem important NOW?"
+ */
+export type UrgencyType =
+  | "external_deadline"    // Regulation, contract, or market timing
+  | "growing_pain"         // Problem is getting worse as usage increases
+  | "blocking_work"        // Can't proceed with other priorities until done
+  | "user_demand";         // Users are explicitly requesting this
+
+/**
+ * Primary user type from interview question 2.1
+ * Maps to: "Who is the PRIMARY user of this feature?"
+ */
+export type PrimaryUserType =
+  | "developers"           // Technical users building or integrating
+  | "end_users"            // Non-technical users of the application
+  | "admins"               // System administrators or operations team
+  | "mixed";               // Multiple user types with different needs
+
+/**
+ * Integration scope from interview question 3.1
+ * Maps to: "What existing systems does this feature need to integrate with?"
+ */
+export type IntegrationScopeType =
+  | "standalone"           // Completely new, minimal dependencies
+  | "extends_existing"     // Adds to an existing feature or module
+  | "multiple_integrations" // Needs to connect several systems
+  | "external_apis";       // Requires third-party service integration
+
+/**
+ * Usage context from interview question 2.2 (optional)
+ */
+export type UsageContextType =
+  | "daily"                // Part of regular, frequent tasks
+  | "occasional"           // Used periodically when needed
+  | "one_time"             // Configure once and rarely touch again
+  | "emergency";           // Only used in specific situations
+
+/**
+ * Data requirements from interview question 3.2 (optional)
+ */
+export type DataRequirementsType =
+  | "existing_only"        // Uses data already in the system
+  | "new_model"            // Requires new database tables/schemas
+  | "external_data"        // Needs to fetch data from external sources
+  | "user_generated";      // Users will create/input new data
+
+/**
+ * Performance requirements from interview question 4.1 (optional)
+ */
+export type PerformanceRequirementsType =
+  | "realtime"             // Must respond instantly (<100ms)
+  | "interactive"          // Fast enough for smooth UX (<1s)
+  | "background"           // Can process asynchronously
+  | "none";                // Performance is not critical
+
+/**
+ * Priority tradeoff from interview question 4.2 (optional)
+ */
+export type PriorityTradeoffType =
+  | "speed"                // Ship fast, iterate later
+  | "quality"              // Well-architected, maintainable
+  | "completeness"         // All requirements before release
+  | "ux";                  // Polish and ease of use
+
+/**
  * Feature as output from decomposition (before adding to queue)
  */
 export interface DecomposedFeature {
@@ -128,6 +232,81 @@ export interface DecomposedFeature {
   dependencies: string[];
   /** Priority (derived from dependencies) */
   priority: number;
+
+  // ==========================================================================
+  // Rich Decomposition Fields (for batch mode)
+  // Required for --batch flag
+  // ==========================================================================
+
+  /** What type of problem this solves (required for batch) */
+  problemType?: ProblemType;
+  /** Why this is needed now (required for batch) */
+  urgency?: UrgencyType;
+  /** Who uses this feature (required for batch) */
+  primaryUser?: PrimaryUserType;
+  /** How it integrates with existing systems (required for batch) */
+  integrationScope?: IntegrationScopeType;
+
+  // ==========================================================================
+  // Optional Rich Fields (for richer specs)
+  // ==========================================================================
+
+  /** How often the feature is used */
+  usageContext?: UsageContextType;
+  /** What data the feature needs */
+  dataRequirements?: DataRequirementsType;
+  /** Performance requirements */
+  performanceRequirements?: PerformanceRequirementsType;
+  /** What matters most for this feature */
+  priorityTradeoff?: PriorityTradeoffType;
+
+  // ==========================================================================
+  // Uncertainty Handling (for fallback mechanism)
+  // ==========================================================================
+
+  /** Fields where decomposition couldn't determine a value */
+  uncertainties?: string[];
+  /** Free-form notes on what needs human input */
+  clarificationNeeded?: string;
+}
+
+/**
+ * Required fields for batch mode specification
+ */
+export const BATCH_REQUIRED_FIELDS = [
+  "problemType",
+  "urgency",
+  "primaryUser",
+  "integrationScope",
+] as const;
+
+/**
+ * Type guard to check if a feature has all required batch fields
+ */
+export function isBatchReady(feature: DecomposedFeature): feature is DecomposedFeature & {
+  problemType: ProblemType;
+  urgency: UrgencyType;
+  primaryUser: PrimaryUserType;
+  integrationScope: IntegrationScopeType;
+} {
+  return (
+    feature.problemType !== undefined &&
+    feature.urgency !== undefined &&
+    feature.primaryUser !== undefined &&
+    feature.integrationScope !== undefined
+  );
+}
+
+/**
+ * Get missing batch fields for a feature
+ */
+export function getMissingBatchFields(feature: DecomposedFeature): string[] {
+  const missing: string[] = [];
+  if (!feature.problemType) missing.push("problemType");
+  if (!feature.urgency) missing.push("urgency");
+  if (!feature.primaryUser) missing.push("primaryUser");
+  if (!feature.integrationScope) missing.push("integrationScope");
+  return missing;
 }
 
 // =============================================================================

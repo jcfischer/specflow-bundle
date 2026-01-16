@@ -59,10 +59,13 @@ describe("init command", () => {
       const specPath = join(TEST_SPEC_DIR, "spec.md");
       writeFileSync(specPath, `# Test App\n\nA simple test application.`);
 
-      // Create a mock features file that init can read
+      // Create a mock features file that init can read (default minimum 5 features required)
       const featuresJson = JSON.stringify([
         { id: "F-1", name: "Core model", description: "Data models", dependencies: [], priority: 1 },
         { id: "F-2", name: "CLI commands", description: "CLI interface", dependencies: ["F-1"], priority: 2 },
+        { id: "F-3", name: "Database layer", description: "SQLite storage", dependencies: ["F-1"], priority: 3 },
+        { id: "F-4", name: "Config system", description: "Configuration", dependencies: [], priority: 4 },
+        { id: "F-5", name: "Testing utils", description: "Test helpers", dependencies: ["F-1"], priority: 5 },
       ]);
       const featuresPath = join(TEST_SPEC_DIR, "features.json");
       writeFileSync(featuresPath, featuresJson);
@@ -71,7 +74,7 @@ describe("init command", () => {
 
       expect(exitCode).toBe(0);
       expect(stdout).toContain("Initialized");
-      expect(stdout).toContain("2 features");
+      expect(stdout).toContain("5 features");
 
       // Verify database was created
       expect(existsSync(TEST_DB_PATH)).toBe(true);
@@ -79,9 +82,10 @@ describe("init command", () => {
       // Verify features in database
       initDatabase(TEST_DB_PATH);
       const features = getFeatures();
-      expect(features).toHaveLength(2);
-      expect(features[0].id).toBe("F-1");
-      expect(features[1].id).toBe("F-2");
+      expect(features).toHaveLength(5);
+      // Features are sorted by priority, verify all IDs are present
+      const featureIds = features.map(f => f.id).sort();
+      expect(featureIds).toEqual(["F-1", "F-2", "F-3", "F-4", "F-5"]);
     });
 
     it("should not overwrite existing database without --force", () => {
@@ -110,11 +114,14 @@ describe("init command", () => {
       initDatabase(TEST_DB_PATH);
       closeDatabase();
 
-      // Create features file
+      // Create features file (default minimum 5 features required)
       mkdirSync(TEST_SPEC_DIR, { recursive: true });
       const featuresJson = JSON.stringify([
         { id: "F-1", name: "New feature", description: "New", dependencies: [], priority: 1 },
         { id: "F-2", name: "Another", description: "New", dependencies: [], priority: 2 },
+        { id: "F-3", name: "Third one", description: "New", dependencies: [], priority: 3 },
+        { id: "F-4", name: "Fourth one", description: "New", dependencies: [], priority: 4 },
+        { id: "F-5", name: "Fifth one", description: "New", dependencies: [], priority: 5 },
       ]);
       const featuresPath = join(TEST_SPEC_DIR, "features.json");
       writeFileSync(featuresPath, featuresJson);
@@ -122,7 +129,7 @@ describe("init command", () => {
       const { stdout, exitCode } = runCli(["init", "--from-features", featuresPath, "--force"]);
 
       expect(exitCode).toBe(0);
-      expect(stdout).toContain("2 features");
+      expect(stdout).toContain("5 features");
     });
   });
 
