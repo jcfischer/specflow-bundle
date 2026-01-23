@@ -389,3 +389,58 @@ export function verifyMigrations(
     }
   }
 }
+
+// =============================================================================
+// Embedded Migration Support
+// =============================================================================
+
+/**
+ * Run pending migrations from embedded migration data
+ * Used when filesystem migrations are unavailable (compiled binary)
+ */
+export function runEmbeddedMigrations(
+  db: Database,
+  embeddedMigrations: Migration[]
+): MigrationResult {
+  ensureMigrationsTable(db);
+
+  const currentVersion = getCurrentVersion(db);
+  const pending = embeddedMigrations.filter((m) => m.version > currentVersion);
+
+  if (pending.length === 0) {
+    return { applied: 0, migrations: [], success: true };
+  }
+
+  const applied: AppliedMigration[] = [];
+
+  for (const migration of pending) {
+    const checksum = calculateChecksum(migration.upSql);
+
+    try {
+      db.exec("BEGIN TRANSACTION");
+      db.exec(migration.upSql);
+      recordMigration(db, migration.version, migration.name, checksum);
+      db.exec("COMMIT");
+
+      applied.push({
+        version: migration.version,
+        name: migration.name,
+        appliedAt: new Date(),
+        checksum,
+      });
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw new MigrationError(
+        migration.version,
+        migration.name,
+        error as Error
+      );
+    }
+  }
+
+  return {
+    applied: applied.length,
+    migrations: applied,
+    success: true,
+  };
+}

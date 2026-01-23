@@ -1,6 +1,6 @@
 ---
 name: SpecFlow
-description: Multi-agent orchestration for spec-driven development (SDD). Inverts traditional development - specifications become executable artifacts that directly generate implementations. USE WHEN user says "new feature", "spec out", "create spec", "specify", "specflow", or wants structured feature development.
+description: Multi-agent orchestration for spec-driven development (SDD). Inverts traditional development - specifications become executable artifacts that directly generate implementations. USE WHEN user says "new feature", "spec out", "create spec", "specify", "specflow", "work on F-", "implement F-", or wants structured feature development.
 triggers:
   - pattern: "/specflow"
     type: command
@@ -15,6 +15,12 @@ triggers:
     type: keyword
     priority: 50
   - pattern: "specflow specify"
+    type: keyword
+    priority: 50
+  - pattern: "work on F-"
+    type: keyword
+    priority: 50
+  - pattern: "implement F-"
     type: keyword
     priority: 50
   - pattern: "spec-driven"

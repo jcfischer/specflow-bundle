@@ -10,7 +10,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "test": "bun test",
-    "build": "bun build --compile --outfile=specflow src/index.ts",
+    "embed-migrations": "bun run scripts/embed-migrations.ts",
+    "build": "bun run embed-migrations && bun build --compile --outfile=specflow src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

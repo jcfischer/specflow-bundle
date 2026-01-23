@@ -20,7 +20,8 @@ import type {
   PerformanceRequirementsType,
   PriorityTradeoffType,
 } from "../types";
-import { runPendingMigrations } from "./migrations";
+import { runPendingMigrations, runEmbeddedMigrations } from "./migrations";
+import { EMBEDDED_MIGRATIONS } from "./migrations/embedded";
 
 // =============================================================================
 // Module State
@@ -193,10 +194,14 @@ export function initDatabase(dbPath: string): Database {
     )
   `);
 
-  // Run pending migrations (migrations are stored with the SpecFlow package)
+  // Run pending migrations
+  // First try filesystem (works when running from source)
+  // Fall back to embedded migrations (works in compiled binary)
   const migrationsDir = join(import.meta.dir, "..", "..", "migrations");
   if (existsSync(migrationsDir)) {
     runPendingMigrations(db, migrationsDir);
+  } else if (EMBEDDED_MIGRATIONS.length > 0) {
+    runEmbeddedMigrations(db, EMBEDDED_MIGRATIONS);
   }
 
   return db;
