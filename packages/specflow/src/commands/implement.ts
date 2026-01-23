@@ -58,11 +58,27 @@ function buildImplementationPrompt(feature: Feature): ImplementPrompt {
   const tasks = readFileSync(tasksFile, "utf-8");
 
   // Build the implementation prompt
+  // Create branch name from feature id and name (e.g., "feat/F-1-rss-discovery")
+  const branchName = `feat/${feature.id}-${feature.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+
   const prompt = `# Feature Implementation
 
 ## Context & Motivation
 
 This implementation prompt is only generated after completing all SpecFlow phases—specification, technical planning, and task breakdown. By the time you reach this phase, requirements are documented, architecture is decided, and tasks are explicit. This upstream work reduces implementation time by 40-50% and prevents the "build first, understand later" anti-pattern that causes rework.
+
+## FIRST: Create Feature Branch
+
+**Before writing any code, create and switch to a feature branch:**
+
+\`\`\`bash
+git checkout -b ${branchName}
+\`\`\`
+
+This ensures:
+- Main branch stays clean and deployable
+- Work can be reviewed via pull request
+- Easy rollback if issues arise
 
 ## Feature
 
