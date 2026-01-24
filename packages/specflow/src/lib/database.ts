@@ -11,6 +11,7 @@ import type {
   FeatureStatus,
   FeatureStats,
   SpecPhase,
+  SkipReason,
   ProblemType,
   UrgencyType,
   PrimaryUserType,
@@ -417,7 +418,20 @@ export function updateFeatureStatus(id: string, status: FeatureStatus): void {
 }
 
 /**
- * Skip a feature (move to end of queue)
+ * Input for skipping a feature with validation
+ */
+export interface SkipFeatureInput {
+  /** Reason for skipping */
+  reason: SkipReason;
+  /** Detailed justification */
+  justification: string;
+  /** If duplicate, which feature it duplicates */
+  duplicateOf?: string;
+}
+
+/**
+ * Skip a feature (move to end of queue) - DEPRECATED
+ * Use skipFeatureWithValidation instead for proper audit trail
  */
 export function skipFeature(id: string): void {
   const db = getDb();
@@ -433,6 +447,73 @@ export function skipFeature(id: string): void {
     `UPDATE features SET status = 'skipped', priority = ? WHERE id = ?`,
     [newPriority, id]
   );
+}
+
+/**
+ * Skip a feature with validation and audit trail
+ * This is the preferred method for skipping features
+ */
+export function skipFeatureWithValidation(
+  id: string,
+  input: SkipFeatureInput
+): { success: boolean; error?: string } {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  // Validate duplicate_of if reason is duplicate
+  if (input.reason === "duplicate") {
+    if (!input.duplicateOf) {
+      return {
+        success: false,
+        error: "When skip reason is 'duplicate', you must specify which feature it duplicates (--duplicate-of)",
+      };
+    }
+
+    // Check that the duplicate feature exists
+    const duplicateFeature = getFeature(input.duplicateOf);
+    if (!duplicateFeature) {
+      return {
+        success: false,
+        error: `Duplicate feature '${input.duplicateOf}' not found. Cannot skip as duplicate of non-existent feature.`,
+      };
+    }
+
+    // Check that the duplicate feature is complete or in_progress
+    if (duplicateFeature.status !== "complete" && duplicateFeature.status !== "in_progress") {
+      return {
+        success: false,
+        error: `Cannot skip as duplicate of '${input.duplicateOf}' - that feature is not complete or in progress (status: ${duplicateFeature.status}). Complete the original feature first.`,
+      };
+    }
+  }
+
+  // Get max priority
+  const row = db.query<{ max_priority: number }, []>(
+    `SELECT COALESCE(MAX(priority), 0) as max_priority FROM features`
+  ).get();
+
+  const newPriority = (row?.max_priority ?? 0) + 1;
+
+  db.run(
+    `UPDATE features SET
+      status = 'skipped',
+      priority = ?,
+      skip_reason = ?,
+      skip_justification = ?,
+      skip_validated_at = ?,
+      skip_duplicate_of = ?
+    WHERE id = ?`,
+    [
+      newPriority,
+      input.reason,
+      input.justification,
+      now,
+      input.duplicateOf ?? null,
+      id,
+    ]
+  );
+
+  return { success: true };
 }
 
 /**
@@ -665,6 +746,11 @@ interface FeatureRow {
   priority_tradeoff: string | null;
   uncertainties: string | null;
   clarification_needed: string | null;
+  // Skip audit trail
+  skip_reason: string | null;
+  skip_justification: string | null;
+  skip_validated_at: string | null;
+  skip_duplicate_of: string | null;
 }
 
 interface StatsRow {
@@ -710,5 +796,10 @@ function rowToFeature(row: FeatureRow): Feature {
     priorityTradeoff: row.priority_tradeoff as PriorityTradeoffType | undefined,
     uncertainties,
     clarificationNeeded: row.clarification_needed ?? undefined,
+    // Skip audit trail
+    skipReason: row.skip_reason as SkipReason | undefined,
+    skipJustification: row.skip_justification ?? undefined,
+    skipValidatedAt: row.skip_validated_at ? new Date(row.skip_validated_at) : undefined,
+    skipDuplicateOf: row.skip_duplicate_of ?? undefined,
   };
 }
