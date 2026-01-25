@@ -123,7 +123,16 @@ program
   .command("skip")
   .description("Skip a feature and move it to the end of the queue")
   .argument("<feature-id>", "Feature ID to skip (e.g., F-1)")
-  .action(skipCommand);
+  .option("--reason <reason>", "Reason for skipping (duplicate, deferred, blocked, out_of_scope, superseded)")
+  .option("--justification <text>", "Detailed explanation for the skip decision")
+  .option("--duplicate-of <id>", "If duplicate, which feature it duplicates (required when reason=duplicate)")
+  .option("--force", "Bypass validation (dangerous - migration only)")
+  .action((featureId, options) => skipCommand(featureId, {
+    reason: options.reason,
+    justification: options.justification,
+    duplicateOf: options.duplicateOf,
+    force: options.force,
+  }));
 
 program
   .command("specify")

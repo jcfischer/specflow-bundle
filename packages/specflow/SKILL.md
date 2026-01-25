@@ -1,96 +1,184 @@
 ---
 name: SpecFlow
-description: Multi-agent orchestration for spec-driven development (SDD). Inverts traditional development - specifications become executable artifacts that directly generate implementations. USE WHEN user says "new feature", "spec out", "create spec", "specify", "specflow", "work on F-", "implement F-", or wants structured feature development.
-triggers:
-  - pattern: "/specflow"
-    type: command
-    priority: 100
-  - pattern: "spec out"
-    type: keyword
-    priority: 50
-  - pattern: "create spec"
-    type: keyword
-    priority: 50
-  - pattern: "new feature"
-    type: keyword
-    priority: 50
-  - pattern: "specflow specify"
-    type: keyword
-    priority: 50
-  - pattern: "work on F-"
-    type: keyword
-    priority: 50
-  - pattern: "implement F-"
-    type: keyword
-    priority: 50
-  - pattern: "spec-driven"
-    type: keyword
-    priority: 40
+description: |
+  Orchestrates spec-driven development using the `specflow` CLI (installed at ~/bin/specflow).
+  Enforces SPECIFY → PLAN → TASKS → IMPLEMENT gated workflow with quality evals.
+  USE WHEN project has `.specify/` or `.specflow/` directory, user mentions F-1/F-2
+  pattern, or user says "spec", "specify", "specflow", "new feature".
 ---
 
 # SpecFlow - Spec-Driven Development
 
-Multi-agent orchestration for spec-driven development (SDD). Based on GitHub's spec-kit methodology.
+Multi-agent orchestration for spec-driven development using the **`specflow` CLI**.
 
-## Philosophy
+Based on [GitHub's spec-kit](https://github.com/github/spec-kit).
 
-> "Code is a liability, not an asset." - Cory Doctorow
+---
 
-Specifications become executable artifacts that directly generate implementations:
+## CLI Tool
 
-```
-SPECIFY -> PLAN -> TASKS+IMPLEMENT -> VERIFY
-   |         |           |              |
- What/Why   How    Work Items→Code   Doctorow Gate
-                   (auto-chains)
-```
-
-## Workflow Phases
-
-### Phase 1: Specify (`specflow specify F-N`)
-Define WHAT and WHY, explicitly avoiding HOW.
-- Begins with structured interview (8 phases)
-- Generates `spec.md` from template
-- Quality gate: Must score ≥ 80%
-
-### Phase 2: Plan (`specflow plan F-N`)
-Convert specification into technical design.
-- Architecture overview
-- Technology stack with rationale
-- Constitutional compliance check
-- Failure mode analysis
-
-### Phase 3: Tasks (`specflow tasks F-N`)
-Break plan into implementation units.
-- Task groups (Foundation, Core, Integration)
-- Dependencies and parallelization markers
-- Auto-chains to Phase 4
-
-### Phase 4: Implement (auto-triggered)
-Execute tasks with TDD enforcement.
-- RED: Write failing test
-- GREEN: Write minimal implementation
-- FULL SUITE: All tests pass
-- Doctorow Gate: Verify failure handling
-
-## Quick Reference
+SpecFlow uses a compiled CLI at `~/bin/specflow`. **All commands in this document are bash commands:**
 
 ```bash
-# Add feature to queue
-specflow add "RSS feed discovery"
-
-# Specify feature (with interview)
-specflow specify F-1
-
-# Plan feature
-specflow plan F-1
-
-# Generate tasks and implement
-specflow tasks F-1
-
-# Evaluate spec/plan quality
-specflow eval run --file spec.md --suite spec-quality
+# These are BASH commands executed via the Bash tool
+specflow status          # View feature queue
+specflow specify F-1     # Create specification
+specflow plan F-1        # Create technical plan
+specflow tasks F-1       # Create task breakdown
+specflow complete F-1    # Mark feature complete
 ```
+
+Run `specflow --help` for full command list.
+
+---
+
+## Workflow Routing
+
+| Trigger | Action | File |
+|---------|--------|------|
+| "specify", "new feature", "create spec" | Run SPECIFY phase | `workflows/specify-with-interview.md` |
+| "plan", "architecture", "technical design" | Run PLAN phase | `workflows/sdd-workflow.md` |
+| "tasks", "break down", "implementation units" | Run TASKS phase | `workflows/sdd-workflow.md` |
+| "complete", "finish feature", "mark done" | Run COMPLETE | `workflows/sdd-workflow.md` |
+| Anti-pattern detected | Reference docs | `docs/ANTI-PATTERNS.md` |
+| Quality gate questions | Reference docs | `docs/QUALITY-GATES.md` |
+| pai-deps integration | Reference docs | `docs/PAI-DEPS-INTEGRATION.md` |
+
+---
+
+## Critical: No Code Without Specs
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  YOU MAY NOT WRITE IMPLEMENTATION CODE UNTIL:                   │
+│                                                                 │
+│  1. spec.md exists for the feature                              │
+│  2. plan.md exists for the feature                              │
+│  3. tasks.md exists for the feature                             │
+│  4. Quality gates have passed (≥80%)                            │
+│                                                                 │
+│  If SpecFlow is loaded, you MUST follow the workflow.           │
+│  If you can't follow the workflow, ASK the user first.          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Pre-Implementation Gate Check
+
+Before writing ANY implementation code, verify:
+
+- [ ] `specflow status` shows feature in IMPLEMENT phase
+- [ ] `.specify/specs/F-N-<name>/spec.md` exists
+- [ ] `.specify/specs/F-N-<name>/plan.md` exists
+- [ ] `.specify/specs/F-N-<name>/tasks.md` exists
+- [ ] Quality evals passed (`specflow eval run`)
+
+**If ANY box is unchecked, STOP and complete the missing phase.**
+
+---
+
+## Four-Phase Workflow
+
+```
+SPECIFY -> PLAN -> TASKS -> IMPLEMENT
+   |         |        |         |
+ What/Why   How    Work Items  Code
+   ▼         ▼        ▼         ▼
+spec.md   plan.md  tasks.md   src/
+```
+
+**Gated phases**: Do NOT advance until current phase is validated.
+
+### Phase 1: Specify (`specflow specify F-N`)
+
+Creates spec.md through 8-phase structured interview:
+1. Problem & Pain
+2. Users & Context
+3. Technical Context
+4. Constraints & Tradeoffs
+5. User Experience
+6. Edge Cases
+7. Success Criteria
+8. Scope & Future
+
+**Quick-Start Mode** (`--quick`): Reduced interview, 60% threshold.
+**Batch Mode** (`--batch`): Non-interactive from decomposition data.
+
+**Quality Gate**: ≥80% on spec-quality rubric (≥60% for quick-start).
+
+See `workflows/specify-with-interview.md` for full interview protocol.
+
+### Phase 2: Plan (`specflow plan F-N`)
+
+Creates plan.md with:
+- Architecture decisions with rationale
+- Data models and schemas
+- API contracts
+- Failure Mode Analysis
+- Constitutional compliance checklist
+
+**Quality Gate**: ≥80% AND pass Constitutional Compliance.
+
+### Phase 3: Tasks (`specflow tasks F-N`)
+
+Creates tasks.md with:
+- Task IDs (T-1.1, T-1.2, etc.)
+- Dependencies marked (`depends: T-X.Y`)
+- Test requirements marked `[T]`
+
+**Auto-chains to Phase 4** after tasks.md is generated.
+
+### Phase 4: Implement
+
+Execute tasks with TDD:
+1. **RED**: Write failing test first
+2. **GREEN**: Minimal implementation to pass
+3. **BLUE**: Refactor while keeping tests green
+4. **VERIFY**: Run full test suite (`bun test`)
+
+### Completion (`specflow complete F-N`)
+
+Validates:
+- All required files exist (spec.md, plan.md, tasks.md, docs.md, verify.md)
+- Test coverage ratio ≥0.3
+- verify.md has real output (no placeholders)
+- Doctorow Gate passed
+
+---
+
+## Quick Start
+
+```bash
+# New project
+specflow init "Project description"
+specflow status
+
+# Add and spec a feature
+specflow add "feature-name" "Description"
+specflow specify F-1
+specflow plan F-1
+specflow tasks F-1
+# ... implement with TDD ...
+specflow complete F-1
+```
+
+---
+
+## CLI Command Quick Reference
+
+| Command | Purpose |
+|---------|---------|
+| `specflow status` | Show feature queue and progress |
+| `specflow add` | Add new feature |
+| `specflow specify F-N` | Create spec.md |
+| `specflow plan F-N` | Create plan.md |
+| `specflow tasks F-N` | Create tasks.md |
+| `specflow complete F-N` | Mark feature complete |
+| `specflow eval run` | Run quality evaluations |
+| `specflow revise F-N` | Revise artifact based on feedback |
+
+See `docs/CLI-REFERENCE.md` for full command reference.
+
+---
 
 ## Directory Structure
 
@@ -99,17 +187,78 @@ project-root/
 ├── .specflow/
 │   └── features.db           # Feature queue (SQLite)
 ├── .specify/
-│   ├── memory/
-│   │   └── constitution.md   # Project-specific principles
-│   ├── debt-ledger.md        # Technical debt tracking
-│   └── specs/
-│       └── F-N-<feature-name>/
-│           ├── spec.md       # Specification
-│           ├── plan.md       # Technical Plan
-│           └── tasks.md      # Implementation Tasks
+│   ├── memory/constitution.md
+│   ├── debt-ledger.md
+│   └── specs/F-N-<name>/
+│       ├── spec.md
+│       ├── plan.md
+│       ├── tasks.md
+│       ├── docs.md
+│       └── verify.md
+└── src/
 ```
+
+---
+
+## Feature Granularity
+
+Projects must decompose into **5-15 features**:
+- Each completable in 1-4 hours
+- Each independently testable
+- Each a user-visible capability
+
+---
+
+## When to Use SpecFlow
+
+**ALWAYS use for:**
+- Any NEW FEATURE (command, capability, integration)
+- Multi-file changes that add functionality
+
+**DO NOT use for:**
+- Bug fixes
+- Single-file tweaks
+- Config changes
+- Documentation updates
+
+---
+
+## Handling Time Pressure
+
+If time-constrained, ASK explicitly:
+
+```
+"SpecFlow requires full spec/plan/tasks for each feature. Options:
+1. Full SpecFlow for 2-3 features instead of 8
+2. Skip SpecFlow and code directly
+3. Hybrid: Full specs for core features only
+
+Which approach would you prefer?"
+```
+
+Never silently skip phases.
+
+---
+
+## Extended Documentation
+
+| Topic | File |
+|-------|------|
+| Full SDD workflow | `workflows/sdd-workflow.md` |
+| Interview protocol | `workflows/specify-with-interview.md` |
+| Anti-patterns | `docs/ANTI-PATTERNS.md` |
+| CLI reference | `docs/CLI-REFERENCE.md` |
+| Quality gates | `docs/QUALITY-GATES.md` |
+| pai-deps integration | `docs/PAI-DEPS-INTEGRATION.md` |
+
+## Templates
+
+Available in `templates/`:
+- `constitution.md`, `spec.md`, `plan.md`, `tasks.md`, `verify.md`, `debt-ledger.md`
+
+---
 
 ## References
 
 - [GitHub spec-kit](https://github.com/github/spec-kit)
-- [Spec-Driven Development with AI](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/)
+- PAI CONSTITUTION.md - Master principles

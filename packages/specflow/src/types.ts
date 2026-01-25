@@ -13,6 +13,17 @@
 export type FeatureStatus = "pending" | "in_progress" | "complete" | "skipped";
 
 /**
+ * Reason for skipping a feature
+ * Required when marking a feature as skipped
+ */
+export type SkipReason =
+  | "duplicate"           // Feature is a duplicate of another
+  | "deferred"            // Feature deferred to a later milestone
+  | "blocked"             // Feature blocked by external dependency
+  | "out_of_scope"        // Feature determined to be out of scope
+  | "superseded";         // Feature replaced by different approach
+
+/**
  * SpecFlow phase for a feature
  * Each feature must progress through: specify -> plan -> tasks -> implement
  */
@@ -76,6 +87,19 @@ export interface Feature {
   uncertainties?: string[];
   /** Free-form notes on what needs human input */
   clarificationNeeded?: string;
+
+  // ==========================================================================
+  // Skip Audit Trail (populated when status = skipped)
+  // ==========================================================================
+
+  /** Why the feature was skipped */
+  skipReason?: SkipReason;
+  /** Detailed justification for the skip decision */
+  skipJustification?: string;
+  /** When the skip was validated */
+  skipValidatedAt?: Date;
+  /** If duplicate, which feature it duplicates */
+  skipDuplicateOf?: string;
 }
 
 // =============================================================================

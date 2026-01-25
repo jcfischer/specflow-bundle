@@ -53,11 +53,19 @@ describe("skip command", () => {
     addFeature({ id: "F-3", name: "Third", description: "Desc", priority: 3 });
     closeDatabase();
 
-    const { stdout, exitCode } = runCli(["skip", "F-1"]);
+    const { stdout, exitCode } = runCli([
+      "skip",
+      "F-1",
+      "--reason",
+      "deferred",
+      "--justification",
+      "Deferring to later milestone",
+    ]);
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain("Skipped");
     expect(stdout).toContain("F-1");
+    expect(stdout).toContain("deferred");
 
     // Verify in database
     initDatabase(TEST_DB_PATH);
@@ -66,6 +74,46 @@ describe("skip command", () => {
     expect(features[1].id).toBe("F-3");
     expect(features[2].id).toBe("F-1");
     expect(features[2].status).toBe("skipped");
+  });
+
+  it("should require reason and justification", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "First", description: "Desc", priority: 1 });
+    closeDatabase();
+
+    const { stderr, exitCode } = runCli(["skip", "F-1"]);
+
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain("Skip reason is required");
+  });
+
+  it("should validate duplicate-of when reason is duplicate", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "First", description: "Desc", priority: 1 });
+    closeDatabase();
+
+    const { stderr, exitCode } = runCli([
+      "skip",
+      "F-1",
+      "--reason",
+      "duplicate",
+      "--justification",
+      "Duplicate feature",
+    ]);
+
+    expect(exitCode).not.toBe(0);
+    expect(stderr).toContain("must specify which feature it duplicates");
+  });
+
+  it("should allow --force to bypass validation", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "First", description: "Desc", priority: 1 });
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["skip", "F-1", "--force"]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("forced");
   });
 
   it("should error for non-existent feature", () => {
