@@ -209,7 +209,7 @@ Batch mode generates specifications non-interactively using pre-gathered require
 **ID:** ${feature.id}
 **Name:** ${feature.name}
 **Description:** ${feature.description}
-**Dependencies:** ${feature.dependencies.length > 0 ? feature.dependencies.join(", ") : "None"}
+**Dependencies:** ${Array.isArray(feature.dependencies) && feature.dependencies.length > 0 ? feature.dependencies.join(", ") : "None"}
 **Priority:** ${feature.priority}
 
 ${appContextSection}## Pre-Gathered Requirements (from decomposition)
