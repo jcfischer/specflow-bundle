@@ -1,0 +1,122 @@
+# Tasks Quality Rubric
+# Evaluates implementation task breakdowns for clarity, completeness, and testability
+# Weights sum to 1.0 | Pass threshold: 80%
+
+name: tasks-quality
+passThreshold: 0.8
+
+criteria:
+  - name: Task Granularity
+    weight: 0.30
+    description: |
+      Tasks are appropriately sized and independently implementable.
+      Must include:
+      - Each task is completable in a single focused session
+      - Tasks have clear boundaries (one concern per task)
+      - Tasks specify concrete file paths and test files
+      - Task IDs are consistent and trackable
+
+      Red flags:
+      - Tasks that are too vague ("implement the feature")
+      - Tasks that bundle multiple unrelated changes
+      - No file paths or test files specified
+      - Tasks that would take days to complete
+    examples:
+      good: |
+        ### T5: Implement exclusion pattern matcher
+        - **File:** `src/lib/contrib-prep/patterns.ts`
+        - **Test:** `tests/lib/contrib-prep/inventory.test.ts`
+        - **Do:**
+          1. Write tests: `.env` → EXCLUDE, `src/index.ts` → INCLUDE
+          2. Implement `classifyFile(path: string): 'include' | 'exclude' | 'review'`
+        - **Depends on:** T4
+        - **Acceptance:** All pattern tests green; classification is deterministic
+      bad: |
+        ### T5: File handling
+        - Implement the file system stuff
+        - Make it work with patterns
+
+  - name: Dependency Chain
+    weight: 0.25
+    description: |
+      Dependencies between tasks are explicit and form a valid DAG.
+      Must include:
+      - Each task declares what it depends on
+      - No circular dependencies
+      - Foundation tasks come first (DB, types, interfaces)
+      - Integration tasks come after unit tasks
+      - Tasks are ordered for TDD (test infrastructure before implementation)
+
+      Red flags:
+      - Missing dependency declarations
+      - Circular or impossible orderings
+      - Integration before units are built
+      - No clear implementation order
+    examples:
+      good: |
+        ### T1: Create migration (depends: nothing)
+        ### T2: Implement state CRUD (depends: T1)
+        ### T3: Register CLI command (depends: T2)
+        ### T4: Create barrel export (depends: T2)
+        ### T5: Implement patterns (depends: T4)
+      bad: |
+        ### T1: Build the feature
+        ### T2: Write tests
+        ### T3: Fix bugs
+
+  - name: Test Coverage
+    weight: 0.25
+    description: |
+      Each task specifies what tests to write and what acceptance looks like.
+      Must include:
+      - Test file paths for each task
+      - Specific test assertions or scenarios described
+      - Acceptance criteria per task (not just overall)
+      - TDD ordering (write test, implement, verify)
+
+      Red flags:
+      - Tasks with no test requirements
+      - Vague acceptance ("it works")
+      - Tests mentioned as afterthought
+      - No assertion specifics
+    examples:
+      good: |
+        - **Test:** `tests/lib/contrib-prep/state.test.ts`
+        - **Do:**
+          1. Write tests: createState, getState, updateGate transitions
+          2. Test gate progression: 0→1→2→3→4→5 only (no skipping)
+          3. Test resume: getState returns correct gate after interruption
+        - **Acceptance:** All CRUD tests green; gate only advances forward
+      bad: |
+        - Test it
+        - Make sure it passes
+
+  - name: Phased Organization
+    weight: 0.20
+    description: |
+      Tasks are organized into logical implementation phases.
+      Must include:
+      - Clear phase groupings (foundation, features, integration, etc.)
+      - Phases build on each other progressively
+      - Each phase has a coherent theme
+      - Total task count is reasonable (10-25 for a medium feature)
+
+      Red flags:
+      - No grouping at all (flat list)
+      - Phases that don't build on each other
+      - Too few tasks (under-specified) or too many (over-specified)
+      - Random ordering with no logical progression
+    examples:
+      good: |
+        ## Phase 1: Foundation (Database + State + CLI)
+        ### T1: Create migration
+        ### T2: Implement state CRUD
+        ### T3: Register CLI command
+
+        ## Phase 2: File Inventory
+        ### T5: Implement pattern matcher
+        ### T6: Implement inventory generator
+      bad: |
+        1. Do the database stuff
+        2. Do the UI
+        3. Everything else
