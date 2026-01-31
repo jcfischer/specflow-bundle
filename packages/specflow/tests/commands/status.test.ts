@@ -12,6 +12,12 @@ import {
   SPECFLOW_DIR,
   DB_FILENAME,
 } from "../../src/lib/database";
+import {
+  createContribState,
+  updateContribGate,
+  updateContribInventory,
+  updateContribTag,
+} from "../../src/lib/contrib-prep/state";
 
 const CLI_PATH = join(import.meta.dir, "../../src/index.ts");
 const TEST_PROJECT_DIR = "/tmp/specflow-status-test";
@@ -164,5 +170,54 @@ describe("status command", () => {
     expect(json.features).toHaveLength(2);
     expect(json.features[0].quickStart).toBe(false);
     expect(json.features[1].quickStart).toBe(true);
+  });
+
+  // ===========================================================================
+  // Contrib Prep Status Tests (T-18)
+  // ===========================================================================
+
+  it("should show contrib prep section when active", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "Feature 1", description: "Desc", priority: 1 });
+    createContribState("F-1", "main");
+    updateContribGate("F-1", 2);
+    updateContribInventory("F-1", 10, 3);
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["status"]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("Contrib Prep:");
+    expect(stdout).toContain("F-1");
+    expect(stdout).toContain("Gate 2/5");
+    expect(stdout).toContain("10 files");
+  });
+
+  it("should not show contrib prep section when none active", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "Feature 1", description: "Desc", priority: 1 });
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["status"]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toContain("Contrib Prep:");
+  });
+
+  it("should show tag info in contrib prep status", () => {
+    initDatabase(TEST_DB_PATH);
+    addFeature({ id: "F-1", name: "Feature 1", description: "Desc", priority: 1 });
+    createContribState("F-1", "main");
+    updateContribGate("F-1", 4);
+    updateContribInventory("F-1", 5, 2);
+    updateContribTag("F-1", "contrib/F-1/v1", "abc123");
+    closeDatabase();
+
+    const { stdout, exitCode } = runCli(["status"]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain("Contrib Prep:");
+    expect(stdout).toContain("Gate 4/5");
+    expect(stdout).toContain("tag: contrib/F-1/v1");
   });
 });

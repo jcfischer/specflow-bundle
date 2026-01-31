@@ -13,6 +13,8 @@ import {
   isLegacyLocation,
   migrateDatabase,
 } from "../lib/database";
+import { getContribState } from "../lib/contrib-prep";
+import { getGateTitle } from "../lib/contrib-prep/gates";
 import type { Feature, FeatureStats } from "../types";
 
 // =============================================================================
@@ -134,6 +136,39 @@ function outputTable(features: Feature[], stats: FeatureStats): void {
   }
 
   console.log("─".repeat(85));
+
+  // Contrib prep section — show any active contrib preps
+  const contribPreps = features
+    .filter((f) => {
+      const cs = getContribState(f.id);
+      return cs !== null;
+    })
+    .map((f) => ({ feature: f, state: getContribState(f.id)! }));
+
+  if (contribPreps.length > 0) {
+    console.log("\nContrib Prep:");
+    console.log("─".repeat(85));
+    for (const { feature, state } of contribPreps) {
+      const gateLabel = state.gate >= 5
+        ? "Complete"
+        : getGateTitle(state.gate + 1);
+      const progress = `Gate ${state.gate}/5`;
+      const details: string[] = [];
+      if (state.inventoryIncluded > 0) {
+        details.push(`${state.inventoryIncluded} files`);
+      }
+      if (state.sanitizationFindings > 0) {
+        details.push(`${state.sanitizationFindings} findings`);
+      }
+      if (state.tagName) {
+        details.push(`tag: ${state.tagName}`);
+      }
+      const detailStr = details.length > 0 ? ` (${details.join(", ")})` : "";
+      console.log(`  ${feature.id} — ${progress} → ${gateLabel}${detailStr}`);
+    }
+    console.log("─".repeat(85));
+  }
+
   console.log("");
 }
 
