@@ -29,6 +29,7 @@ import { migrateCommand } from "./commands/migrate";
 import { reviseCommand } from "./commands/revise";
 import { specifyAllCommand } from "./commands/specify-all";
 import { enrichCommand } from "./commands/enrich";
+import { contribPrepCommand } from "./commands/contrib-prep";
 
 // =============================================================================
 // Main Program
@@ -206,6 +207,31 @@ program
     dryRun: options.dryRun,
     history: options.history,
   }));
+
+program
+  .command("contrib-prep")
+  .description("Prepare code for contribution (inventory → sanitize → extract → verify)")
+  .argument("<feature-id>", "Feature ID to prepare for contribution")
+  .option("--inventory", "Generate file inventory only")
+  .option("--sanitize", "Run sanitization scan only")
+  .option("--extract", "Extract to contrib branch (requires passing sanitization)")
+  .option("--verify", "Verify contrib branch")
+  .option("--base <branch>", "Base branch for contrib (default: main)")
+  .option("--tag <name>", "Custom tag name (default: <project>-v<version>)")
+  .option("--dry-run", "Show what would happen without making changes")
+  .option("-y, --yes", "Skip confirmation prompts (NOT gates — gates always pause)")
+  .action((featureId, options) =>
+    contribPrepCommand(featureId, {
+      inventory: options.inventory,
+      sanitize: options.sanitize,
+      extract: options.extract,
+      verify: options.verify,
+      base: options.base,
+      tag: options.tag,
+      dryRun: options.dryRun,
+      yes: options.yes,
+    })
+  );
 
 // Register phase command (uses Commander directly for flexibility)
 phaseCommand(program);

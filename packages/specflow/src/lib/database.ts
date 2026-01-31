@@ -229,6 +229,15 @@ function getDb(): Database {
   return db;
 }
 
+/**
+ * Get the current database instance (public)
+ * For use by sub-modules (e.g., contrib-prep/state.ts) that need
+ * access to the shared connection without circular imports.
+ */
+export function getDbInstance(): Database {
+  return getDb();
+}
+
 // =============================================================================
 // Feature Operations
 // =============================================================================
