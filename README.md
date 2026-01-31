@@ -233,6 +233,7 @@ After completing all steps, verify:
 ### SpecFlow CLI (Unified Commands)
 
 ```bash
+# Core workflow
 specflow init my-project     # Initialize a new project
 specflow add "New feature"   # Add a feature
 specflow status              # Check progress
@@ -241,7 +242,19 @@ specflow plan F-1            # Create implementation plan
 specflow tasks F-1           # Generate task breakdown
 specflow implement F-1       # Execute with TDD enforcement
 specflow complete F-1        # Mark feature complete
+
+# Contribution preparation
+specflow contrib-prep F-1              # Full workflow with 5 approval gates
+specflow contrib-prep F-1 --inventory  # Generate file inventory only
+specflow contrib-prep F-1 --sanitize   # Run secret/PII scanning only
+specflow contrib-prep F-1 --extract    # Extract to clean contrib branch
+specflow contrib-prep F-1 --verify     # Verify contribution branch
+specflow contrib-prep F-1 --dry-run    # Preview without changes
+
+# Quality & management
 specflow eval run            # Run quality evaluations
+specflow phase F-1 implement # Get or set feature phase
+specflow revise F-1          # Revise spec/plan/tasks artifact
 specflow ui                  # Launch dashboard
 ```
 
@@ -263,10 +276,12 @@ specflow-ui --port 3000      # Launch on port 3000
 
 ---
 
-## The Four-Phase Workflow
+## The Full Lifecycle
+
+![SpecFlow Full Lifecycle](docs/specflow-full-lifecycle.png)
 
 ```
-SPECIFY -> PLAN -> TASKS -> IMPLEMENT
+SPECIFY -> PLAN -> TASKS -> IMPLEMENT -> CONTRIB-PREP -> RELEASE
 ```
 
 | Phase | What | Output |
@@ -275,16 +290,40 @@ SPECIFY -> PLAN -> TASKS -> IMPLEMENT
 | **PLAN** | Design architecture, data models | `plan.md` |
 | **TASKS** | Break into reviewable units | `tasks.md` |
 | **IMPLEMENT** | Build with TDD (RED->GREEN->BLUE) | Working code |
+| **CONTRIB-PREP** | Extract clean contribution from private trunk | Tagged branch |
+| **RELEASE** | Publish verified contribution | Released package |
 
 Each phase is **gated** - you cannot advance until the current phase is validated.
 
 ### Quality Gates
 
-SpecFlow includes built-in quality evaluations:
+SpecFlow includes built-in quality evaluations using YAML rubrics scored by AI:
 
-- **Spec Quality** - Validates specification completeness
-- **Plan Quality** - Validates technical design
+- **Spec Quality** - Validates specification completeness (8 weighted criteria)
+- **Plan Quality** - Validates technical design and architecture decisions
+- **Tasks Quality** - Validates task granularity, dependencies, test coverage, and phased organization
 - Quality threshold: >= 80% to proceed
+
+```bash
+specflow eval run                    # Run all applicable evals
+specflow eval run --rubric spec-quality  # Run specific rubric
+```
+
+---
+
+## Collaborative Development with pai-collab
+
+![SpecFlow + pai-collab Integration](docs/specflow-pai-collab-integration.png)
+
+SpecFlow's `contrib-prep` command bridges private development with the [pai-collab](https://github.com/mellanon/pai-collab) shared ecosystem:
+
+1. **Your Private Workspace** -- Develop features in your private trunk using the full SpecFlow workflow
+2. **Contrib-Prep** -- Extract clean contributions through 5 human-approved gates (inventory, sanitize, extract, verify, approve)
+3. **Shared Blackboard** -- Submit via fork + PR to the pai-collab coordination repo
+4. **Review Pipeline** -- Automated checks, Maestro playbook review, community agents, human sign-off
+5. **Ecosystem** -- Released contributions available to all operators via the Daemon Registry
+
+> AI agents submit PRs like humans -- the operator is accountable. Fork model means no write access needed.
 
 ---
 

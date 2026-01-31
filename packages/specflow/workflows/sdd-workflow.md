@@ -164,44 +164,92 @@ T-2.3 = Group 2, Task 3
 
 ### Phase 4: Implement (auto-triggered)
 
-**Goal**: Execute tasks with TDD enforcement.
+**Goal**: Execute tasks with TDD enforcement on a feature branch.
 
 **Trigger**: Automatic after Phase 3 completes (no separate command needed)
 
+**MANDATORY: Feature Branch Workflow**
+
+All implementation work MUST be done on a feature branch:
+
+```bash
+# 1. Create feature branch from main
+git checkout main && git pull
+git checkout -b spec/F-N-<feature-name>
+
+# 2. All work happens on feature branch
+# ... implement tasks ...
+
+# 3. When complete, merge via PR or squash
+git checkout main && git merge spec/F-N-<feature-name>
+# OR: Create PR for review
+```
+
+**Branch Naming Convention**: `spec/F-N-<feature-name>` (e.g., `spec/F-104-tenant-isolation`)
+
 **Actions**:
-For each task marked `[T]`:
 
-1. **RED**: Write failing test first
-   ```bash
-   bun test path/to/test.ts
-   # Verify: Test fails
-   ```
+For each task in `tasks.md`, use the **PAI ISC Loop**:
 
-2. **GREEN**: Write minimal implementation
-   ```bash
-   bun test path/to/test.ts
-   # Verify: Test passes
-   ```
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 🎯 ISC LOOP FOR TASK T-X.Y                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ━━━ 📋 PLAN ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│  Define task-level Ideal State Criteria (ISC):                              │
+│  - [ ] Criterion 1 (exactly 8 words, testable state)                        │
+│  - [ ] Criterion 2 (exactly 8 words, testable state)                        │
+│  - [ ] Test exists and fails (TDD RED)                                      │
+│                                                                             │
+│  ━━━ ⚡ EXECUTE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│  1. RED: Write failing test first                                           │
+│     bun test path/to/test.ts  # Verify: Test fails                          │
+│                                                                             │
+│  2. GREEN: Write minimal implementation                                     │
+│     bun test path/to/test.ts  # Verify: Test passes                         │
+│                                                                             │
+│  3. FULL SUITE: Run all tests                                               │
+│     bun test  # Verify: ALL tests pass                                      │
+│                                                                             │
+│  4. BLUE: Refactor (keep tests green)                                       │
+│                                                                             │
+│  ━━━ ✅ VERIFY ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│  Check each ISC criterion with evidence:                                    │
+│  - [x] Criterion 1 - VERIFIED: [evidence]                                   │
+│  - [x] Criterion 2 - VERIFIED: [evidence]                                   │
+│  - [x] Test passes - VERIFIED: bun test output                              │
+│                                                                             │
+│  ━━━ 📚 COMMIT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│  Commit task completion:                                                    │
+│  git add -A && git commit -m "spec(F-N): implement T-X.Y - <description>"   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-3. **FULL SUITE**: Run all tests
-   ```bash
-   bun test
-   # Verify: ALL tests pass (no regressions)
-   ```
+**ISC Criteria Requirements**:
+- Exactly 8 words each
+- Granular (single-concern)
+- Testable (binary YES/NO with evidence)
+- State-based (what IS true, not what to DO)
 
-4. **BLUE**: Refactor (optional)
-   - Keep tests green
-   - Improve code quality
+**Task Completion Checklist**:
+- [ ] Feature branch created/used
+- [ ] ISC criteria defined for task
+- [ ] RED: Test written and fails
+- [ ] GREEN: Implementation passes test
+- [ ] FULL SUITE: All tests pass
+- [ ] ISC criteria verified with evidence
+- [ ] Task committed to feature branch
+- [ ] Task status updated in `tasks.md`
 
-5. Update task status in `tasks.md`
+**Doctorow Gate** (after all tasks complete):
+- [ ] Failure test: Break external dep → graceful failure?
+- [ ] Assumption test: Behavior when key assumption wrong?
+- [ ] Rollback test: Can disable without breaking other features?
+- [ ] Debt recorded: Entry added to `.specify/debt-ledger.md`?
 
-6. **VERIFY** (Doctorow Gate):
-   - [ ] Failure test: Intentionally break external dep → graceful failure?
-   - [ ] Assumption test: Behavior when key assumption wrong?
-   - [ ] Rollback test: Can disable without breaking other features?
-   - [ ] Debt recorded: Entry added to `.specify/debt-ledger.md`?
-
-**Exit**: All tasks complete, full test suite passes, Doctorow Gate passed
+**Exit**: All tasks complete on feature branch, full test suite passes, Doctorow Gate passed, ready for merge/PR
 
 ## Directory Structure
 

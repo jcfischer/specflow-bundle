@@ -71,6 +71,7 @@ Before writing ANY implementation code, verify:
 - [ ] `.specify/specs/F-N-<name>/plan.md` exists
 - [ ] `.specify/specs/F-N-<name>/tasks.md` exists
 - [ ] Quality evals passed (`specflow eval run`)
+- [ ] **On feature branch**: `git checkout -b spec/F-N-<name>`
 
 **If ANY box is unchecked, STOP and complete the missing phase.**
 
@@ -129,11 +130,21 @@ Creates tasks.md with:
 
 ### Phase 4: Implement
 
-Execute tasks with TDD:
-1. **RED**: Write failing test first
-2. **GREEN**: Minimal implementation to pass
-3. **BLUE**: Refactor while keeping tests green
-4. **VERIFY**: Run full test suite (`bun test`)
+**MANDATORY: Feature Branch Workflow**
+```bash
+git checkout -b spec/F-N-<feature-name>  # All work on feature branch
+```
+
+For **each task**, use the **PAI ISC Loop**:
+
+1. **PLAN**: Define task-level ISC criteria (8 words, testable state)
+2. **RED**: Write failing test first
+3. **GREEN**: Minimal implementation to pass
+4. **BLUE**: Refactor while keeping tests green
+5. **VERIFY**: Check ISC criteria with evidence
+6. **COMMIT**: `git commit -m "spec(F-N): implement T-X.Y"`
+
+See `workflows/sdd-workflow.md` for full ISC loop template.
 
 ### Completion (`specflow complete F-N`)
 
@@ -157,8 +168,14 @@ specflow add "feature-name" "Description"
 specflow specify F-1
 specflow plan F-1
 specflow tasks F-1
-# ... implement with TDD ...
+
+# Create feature branch and implement
+git checkout -b spec/F-1-feature-name
+# ... implement with TDD + ISC loop ...
+
+# Complete and merge
 specflow complete F-1
+git checkout main && git merge spec/F-1-feature-name
 ```
 
 ---
