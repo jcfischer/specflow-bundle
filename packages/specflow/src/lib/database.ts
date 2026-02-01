@@ -21,7 +21,7 @@ import type {
   PerformanceRequirementsType,
   PriorityTradeoffType,
 } from "../types";
-import { runPendingMigrations, runEmbeddedMigrations } from "./migrations";
+import { runPendingMigrations, runEmbeddedMigrations, getCurrentVersion } from "./migrations";
 import { EMBEDDED_MIGRATIONS } from "./migrations/embedded";
 
 // =============================================================================
@@ -199,8 +199,19 @@ export function initDatabase(dbPath: string): Database {
   // First try filesystem (works when running from source)
   // Fall back to embedded migrations (works in compiled binary)
   const migrationsDir = join(import.meta.dir, "..", "..", "migrations");
+  let migrationsApplied = false;
   if (existsSync(migrationsDir)) {
-    runPendingMigrations(db, migrationsDir);
+    const result = runPendingMigrations(db, migrationsDir);
+    migrationsApplied = result.applied > 0 || result.success;
+    // Verify migrations actually ran by checking if any migration files were found.
+    // In compiled binaries, existsSync may return true for virtual paths but
+    // the directory may be empty or unreadable, resulting in 0 applied migrations
+    // even when the schema version is 0 (fresh database).
+    const currentVersion = getCurrentVersion(db);
+    if (currentVersion === 0 && EMBEDDED_MIGRATIONS.length > 0) {
+      // Filesystem migrations found nothing to apply on a fresh DB — fall back
+      runEmbeddedMigrations(db, EMBEDDED_MIGRATIONS);
+    }
   } else if (EMBEDDED_MIGRATIONS.length > 0) {
     runEmbeddedMigrations(db, EMBEDDED_MIGRATIONS);
   }
