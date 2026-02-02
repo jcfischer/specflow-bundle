@@ -104,6 +104,25 @@ function runTests(): { pass: boolean; output: string } {
 /**
  * Validate verify.md has required sections
  */
+/**
+ * Check if a section's content indicates it is not applicable.
+ * Returns true if the content between this heading and the next heading
+ * contains "N/A", "Not applicable", "Not required", or "CLI only" (case-insensitive).
+ */
+function isSectionNotApplicable(content: string, sectionHeading: string): boolean {
+  const headingIndex = content.indexOf(sectionHeading);
+  if (headingIndex === -1) return false;
+
+  const afterHeading = content.slice(headingIndex + sectionHeading.length);
+  const nextHeadingMatch = afterHeading.match(/\n## /);
+  const sectionContent = nextHeadingMatch
+    ? afterHeading.slice(0, nextHeadingMatch.index)
+    : afterHeading;
+
+  const naPattern = /\b(n\/a|not applicable|not required|cli only)\b/i;
+  return naPattern.test(sectionContent);
+}
+
 function validateVerifyFile(verifyPath: string): string[] {
   const errors: string[] = [];
 
@@ -120,8 +139,21 @@ function validateVerifyFile(verifyPath: string): string[] {
   }
 
   // Check that verification was actually completed (not just template)
+  // But skip placeholder checks for sections marked as N/A
   if (content.includes("[paste actual output]") || content.includes("[paste actual response]")) {
-    errors.push("verify.md contains unfilled placeholders - actual verification not performed");
+    // Only flag unfilled placeholders if the section containing them is not marked N/A
+    const placeholderPattern = /\[paste actual (?:output|response)\]/g;
+    let match;
+    while ((match = placeholderPattern.exec(content)) !== null) {
+      const beforeMatch = content.slice(0, match.index);
+      const lastHeadingMatch = beforeMatch.match(/## [^\n]+/g);
+      const lastHeading = lastHeadingMatch ? lastHeadingMatch[lastHeadingMatch.length - 1] : null;
+
+      if (!lastHeading || !isSectionNotApplicable(content, lastHeading)) {
+        errors.push("verify.md contains unfilled placeholders - actual verification not performed");
+        break;
+      }
+    }
   }
 
   return errors;
