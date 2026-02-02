@@ -286,15 +286,15 @@ function listFilesRecursive(dir: string, prefix: string = ""): string[] {
  */
 /**
  * Default model for headless Doctorow evaluation.
- * Sonnet provides good reasoning for quality checks at reasonable cost.
+ * Opus provides deep reasoning for thorough quality checks.
  * Override via SPECFLOW_DOCTOROW_MODEL env var.
  *
  * Recommended models:
  * - claude-haiku-4-5-20251001: Fast/cheap, may give shallow evaluations
- * - claude-sonnet-4-20250514: Balanced reasoning (default)
- * - claude-opus-4-5-20251101: Deep reasoning, higher cost
+ * - claude-sonnet-4-20250514: Balanced reasoning, lower cost
+ * - claude-opus-4-5-20251101: Deep reasoning (default)
  */
-const DEFAULT_DOCTOROW_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_DOCTOROW_MODEL = "claude-opus-4-5-20251101";
 
 export async function evaluateCheckWithAI(
   check: DoctorowCheck,
@@ -311,7 +311,7 @@ export async function evaluateCheckWithAI(
 
   try {
     const proc = Bun.spawn(
-      ["claude", "-p", "--model", model, "--system-prompt", systemPrompt, userPrompt],
+      ["claude", "-p", "--output-format", "json", "--model", model, "--system-prompt", systemPrompt, userPrompt],
       {
         stdout: "pipe",
         stderr: "pipe",
