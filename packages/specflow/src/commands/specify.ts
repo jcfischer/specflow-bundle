@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+import { isHeadlessMode, runClaudeHeadless } from "../lib/headless";
 import {
   initDatabase,
   closeDatabase,
@@ -76,6 +77,16 @@ export async function specifyCommand(
       console.log(`Feature ${featureId} is already in phase: ${feature.phase}`);
       console.log("Use 'specflow reset' to start over, or continue with next phase.");
       return;
+    }
+
+    // In headless mode, auto-enable batch if decomposition data is available
+    if (isHeadlessMode() && !options.batch) {
+      const decomposedFeature = feature as unknown as DecomposedFeature;
+      const batchCheck = validateBatchReady(decomposedFeature);
+      if (batchCheck.ready) {
+        options.batch = true;
+        console.log("[headless] Auto-enabling batch mode (rich decomposition available)");
+      }
     }
 
     // Batch mode validation
@@ -233,6 +244,25 @@ async function runClaude(
   prompt: string,
   cwd: string
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  // Headless mode: use claude -p --output-format json
+  if (isHeadlessMode()) {
+    console.log("[headless] Running specify phase via claude -p...");
+    const systemPrompt =
+      "You are a specification agent. Follow the instructions exactly. " +
+      "Write the spec file to disk at the path specified. " +
+      "Output [PHASE COMPLETE: SPECIFY] when done.";
+    const result = await runClaudeHeadless(prompt, {
+      systemPrompt,
+      cwd,
+      timeout: 180_000,
+    });
+    if (result.output) {
+      process.stdout.write(result.output);
+    }
+    return result;
+  }
+
+  // Interactive mode: unchanged
   return new Promise((resolve) => {
     const proc = spawn("claude", ["--print", "--dangerously-skip-permissions", prompt], {
       cwd,

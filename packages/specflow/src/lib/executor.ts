@@ -5,6 +5,7 @@
 
 import { spawn, spawnSync } from "child_process";
 import type { RunResult, FeatureContext } from "../types";
+import { isHeadlessMode, runClaudeHeadless } from "./headless";
 
 // =============================================================================
 // Completion Detection
@@ -120,6 +121,47 @@ export async function executeFeature(
     };
   }
 
+  // Headless mode
+  if (isHeadlessMode()) {
+    try {
+      const result = await runClaudeHeadless(prompt, {
+        cwd: context.app.projectPath,
+        timeout,
+      });
+
+      if (!result.success) {
+        return {
+          success: false,
+          featureId: context.feature.id,
+          output: result.output,
+          error: result.error || "Headless execution failed",
+          blocked: false,
+          blockReason: null,
+        };
+      }
+
+      const completion = parseCompletionMarkers(result.output);
+
+      return {
+        success: completion.complete,
+        featureId: context.feature.id,
+        output: result.output,
+        error: completion.complete ? null : (completion.blocked ? null : "No completion marker"),
+        blocked: completion.blocked,
+        blockReason: completion.blockReason,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        featureId: context.feature.id,
+        output: "",
+        error: `Headless execution failed: ${error}`,
+        blocked: false,
+        blockReason: null,
+      };
+    }
+  }
+
   try {
     // Execute Claude CLI
     const result = spawnSync("claude", ["--print", "--dangerously-skip-permissions", prompt], {
@@ -193,7 +235,7 @@ export async function executeFeature(
 /**
  * Execute with streaming output
  */
-export function executeFeatureStreaming(
+export async function executeFeatureStreaming(
   context: FeatureContext,
   prompt: string,
   onOutput: (chunk: string) => void,
@@ -211,6 +253,15 @@ export function executeFeatureStreaming(
       blocked: false,
       blockReason: null,
     });
+  }
+
+  // Headless mode: delegate to executeFeature (no streaming needed in CI)
+  if (isHeadlessMode()) {
+    const result = await executeFeature(context, prompt, options);
+    if (result.output) {
+      onOutput(result.output);
+    }
+    return result;
   }
 
   return new Promise((resolve) => {

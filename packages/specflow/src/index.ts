@@ -30,6 +30,7 @@ import { reviseCommand } from "./commands/revise";
 import { specifyAllCommand } from "./commands/specify-all";
 import { enrichCommand } from "./commands/enrich";
 import { contribPrepCommand } from "./commands/contrib-prep";
+import { pipelineCommand } from "./commands/pipeline";
 
 // =============================================================================
 // Main Program
@@ -232,6 +233,13 @@ program
       yes: options.yes,
     })
   );
+
+program
+  .command("pipeline")
+  .description("Run full SpecFlow pipeline for a feature (specify -> plan -> tasks -> implement -> complete)")
+  .argument("<feature-id>", "Feature ID to process (e.g., F-1)")
+  .option("--stop-after <phase>", "Stop after this phase (specify, plan, tasks, implement, complete)")
+  .action((featureId, options) => pipelineCommand(featureId, { stopAfter: options.stopAfter }));
 
 // Register phase command (uses Commander directly for flexibility)
 phaseCommand(program);

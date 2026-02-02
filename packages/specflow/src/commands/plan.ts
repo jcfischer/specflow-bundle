@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+import { isHeadlessMode, runClaudeHeadless } from "../lib/headless";
 import {
   initDatabase,
   closeDatabase,
@@ -250,6 +251,25 @@ async function runClaude(
   prompt: string,
   cwd: string
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  // Headless mode: use claude -p --output-format json
+  if (isHeadlessMode()) {
+    console.log("[headless] Running plan phase via claude -p...");
+    const systemPrompt =
+      "You are a technical planning agent. Follow the instructions exactly. " +
+      "Write the plan file to disk at the path specified. " +
+      "Output [PHASE COMPLETE: PLAN] when done.";
+    const result = await runClaudeHeadless(prompt, {
+      systemPrompt,
+      cwd,
+      timeout: 180_000,
+    });
+    if (result.output) {
+      process.stdout.write(result.output);
+    }
+    return result;
+  }
+
+  // Interactive mode: unchanged
   return new Promise((resolve) => {
     const proc = spawn("claude", ["--print", "--dangerously-skip-permissions", prompt], {
       cwd,
