@@ -284,12 +284,26 @@ function listFilesRecursive(dir: string, prefix: string = ""): string[] {
  * Evaluate a single Doctorow check using AI (claude -p).
  * On failure, returns confirmed=true to avoid blocking the pipeline.
  */
+/**
+ * Default model for headless Doctorow evaluation.
+ * Sonnet provides good reasoning for quality checks at reasonable cost.
+ * Override via SPECFLOW_DOCTOROW_MODEL env var.
+ *
+ * Recommended models:
+ * - claude-haiku-4-5-20251001: Fast/cheap, may give shallow evaluations
+ * - claude-sonnet-4-20250514: Balanced reasoning (default)
+ * - claude-opus-4-5-20251101: Deep reasoning, higher cost
+ */
+const DEFAULT_DOCTOROW_MODEL = "claude-sonnet-4-20250514";
+
 export async function evaluateCheckWithAI(
   check: DoctorowCheck,
   artifacts: string
 ): Promise<DoctorowCheckResult> {
+  const model = process.env.SPECFLOW_DOCTOROW_MODEL || DEFAULT_DOCTOROW_MODEL;
   const systemPrompt =
     "You are a code quality reviewer evaluating a feature completion check. " +
+    "Analyze the provided feature artifacts carefully. " +
     'Return ONLY valid JSON: {"pass": true, "reasoning": "one sentence explanation"}';
 
   const userPrompt =
@@ -297,7 +311,7 @@ export async function evaluateCheckWithAI(
 
   try {
     const proc = Bun.spawn(
-      ["claude", "-p", "--model", "claude-haiku-4-5-20251001", "--system-prompt", systemPrompt, userPrompt],
+      ["claude", "-p", "--model", model, "--system-prompt", systemPrompt, userPrompt],
       {
         stdout: "pipe",
         stderr: "pipe",
@@ -463,7 +477,8 @@ export async function runDoctorowGate(
   const isHeadless = !process.stdin.isTTY || process.env.SPECFLOW_HEADLESS === "true";
 
   if (isHeadless) {
-    console.log(`\nRunning Doctorow Gate in headless mode (AI evaluation)...`);
+    const model = process.env.SPECFLOW_DOCTOROW_MODEL || DEFAULT_DOCTOROW_MODEL;
+    console.log(`\n🤖 Running Doctorow Gate in headless mode (AI: ${model})...`);
     return runDoctorowGateHeadless(featureId, specPath);
   }
 
