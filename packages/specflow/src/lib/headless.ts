@@ -3,6 +3,11 @@
  * Shared utility for running Claude in non-interactive (headless/CI) mode.
  * Uses `claude -p --output-format json` to avoid TTY requirements and PAI hook corruption.
  *
+ * In headless mode, `claude -p` processes a prompt and returns text output.
+ * It cannot execute tools or write files to disk. Commands that need file
+ * artifacts (spec.md, plan.md) must extract content from the output and
+ * write it themselves.
+ *
  * Reference: doctorow.ts evaluateCheckWithAI() for the proven pattern.
  */
 
@@ -136,4 +141,58 @@ export async function runClaudeHeadless(
       error: `Failed to spawn Claude: ${error}`,
     };
   }
+}
+
+// =============================================================================
+// Output Extraction
+// =============================================================================
+
+/**
+ * Extract a markdown artifact from Claude's headless output.
+ *
+ * In `claude -p` mode, Claude cannot write files — it returns text only.
+ * This function extracts the spec/plan content from that text output so
+ * the caller can write it to disk.
+ *
+ * Extraction strategy (in priority order):
+ * 1. Look for a fenced markdown block (```markdown ... ```)
+ * 2. Look for content starting with a markdown heading (# Specification: ...)
+ * 3. Use the entire output as-is (stripping phase completion markers)
+ */
+export function extractMarkdownArtifact(output: string): string | null {
+  if (!output || !output.trim()) {
+    return null;
+  }
+
+  // Strategy 1: Extract from fenced markdown block
+  const fencedMatch = output.match(/```(?:markdown|md)\s*\n([\s\S]*?)```/);
+  if (fencedMatch && fencedMatch[1].trim()) {
+    return fencedMatch[1].trim();
+  }
+
+  // Strategy 2: Extract from first markdown heading to phase marker (or end)
+  const phaseMarkerIndex = output.search(/\n\[PHASE (?:COMPLETE|BLOCKED)/);
+  const headingIndex = output.search(/^# /m);
+  if (headingIndex !== -1) {
+    const endIndex = phaseMarkerIndex !== -1 ? phaseMarkerIndex : output.length;
+    const content = output.slice(headingIndex, endIndex).trim();
+    if (content) {
+      return content;
+    }
+  }
+
+  // Strategy 3: Strip phase markers and use remaining content
+  const stripped = output
+    .replace(/\[PHASE (?:COMPLETE|BLOCKED)[^\]]*\][^\n]*/g, "")
+    .replace(/Feature:.*$/gm, "")
+    .replace(/Spec:.*$/gm, "")
+    .replace(/Mode:.*$/gm, "")
+    .replace(/Clarifications needed:.*$/gm, "")
+    .trim();
+
+  if (stripped.length > 50) {
+    return stripped;
+  }
+
+  return null;
 }

@@ -4,13 +4,13 @@
  */
 
 import { join, dirname } from "path";
-import { existsSync, mkdirSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-import { isHeadlessMode, runClaudeHeadless } from "../lib/headless";
+import { isHeadlessMode, runClaudeHeadless, extractMarkdownArtifact } from "../lib/headless";
 import {
   initDatabase,
   closeDatabase,
@@ -176,6 +176,16 @@ export async function specifyCommand(
     if (result.success) {
       // Check if spec.md was created
       const specFile = join(specPath, "spec.md");
+
+      // In headless mode, claude -p can't write files — extract spec from output
+      if (!existsSync(specFile) && isHeadlessMode() && result.output) {
+        const extracted = extractMarkdownArtifact(result.output);
+        if (extracted) {
+          writeFileSync(specFile, extracted);
+          console.log("[headless] Extracted spec from Claude output and wrote to spec.md");
+        }
+      }
+
       if (existsSync(specFile)) {
         console.log("\n─".repeat(60));
         console.log(`\n📝 Spec created: ${specFile}`);
@@ -227,10 +237,12 @@ export async function specifyCommand(
         console.log(`\n⚠ Claude finished but spec.md was not created`);
         console.log("  Review the output above and try again");
         updateFeaturePhase(featureId, "none");
+        process.exit(1);
       }
     } else {
       console.error(`\n✗ SPECIFY phase failed: ${result.error}`);
       updateFeaturePhase(featureId, "none");
+      process.exit(1);
     }
   } finally {
     closeDatabase();
@@ -249,8 +261,9 @@ async function runClaude(
     console.log("[headless] Running specify phase via claude -p...");
     const systemPrompt =
       "You are a specification agent. Follow the instructions exactly. " +
-      "Write the spec file to disk at the path specified. " +
-      "Output [PHASE COMPLETE: SPECIFY] when done.";
+      "Output the complete specification as markdown. " +
+      "Start with a # heading. " +
+      "Output [PHASE COMPLETE: SPECIFY] after the spec content.";
     const result = await runClaudeHeadless(prompt, {
       systemPrompt,
       cwd,
