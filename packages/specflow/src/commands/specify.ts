@@ -267,7 +267,7 @@ async function runClaude(
     const result = await runClaudeHeadless(prompt, {
       systemPrompt,
       cwd,
-      timeout: 180_000,
+      timeout: parseInt(process.env.SPECFLOW_TIMEOUT ?? '600000', 10),
     });
     if (result.output) {
       process.stdout.write(result.output);
