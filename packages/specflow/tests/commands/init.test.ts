@@ -133,6 +133,113 @@ describe("init command", () => {
     });
   });
 
+  describe("batch mode", () => {
+    it("should error when --batch is used without description or --from-features/--from-spec", () => {
+      const { stderr, exitCode } = runCli(["init", "--batch"]);
+
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toContain("Please provide a description");
+      expect(stderr).toContain("Batch mode requires");
+    });
+
+    it("should store rich decomposition fields from features JSON", () => {
+      mkdirSync(TEST_SPEC_DIR, { recursive: true });
+      const featuresJson = JSON.stringify([
+        {
+          id: "F-1", name: "Core model", description: "Data models",
+          dependencies: [], priority: 1,
+          problemType: "manual_workaround", urgency: "blocking_work",
+          primaryUser: "developers", integrationScope: "standalone",
+        },
+        {
+          id: "F-2", name: "CLI commands", description: "CLI interface",
+          dependencies: ["F-1"], priority: 2,
+          problemType: "impossible", urgency: "user_demand",
+          primaryUser: "end_users", integrationScope: "extends_existing",
+        },
+        {
+          id: "F-3", name: "Database layer", description: "SQLite storage",
+          dependencies: ["F-1"], priority: 3,
+          problemType: "scattered", urgency: "growing_pain",
+          primaryUser: "admins", integrationScope: "multiple_integrations",
+        },
+        {
+          id: "F-4", name: "Config system", description: "Configuration",
+          dependencies: [], priority: 4,
+          problemType: "quality_issues", urgency: "external_deadline",
+          primaryUser: "mixed", integrationScope: "external_apis",
+        },
+        {
+          id: "F-5", name: "Testing utils", description: "Test helpers",
+          dependencies: ["F-1"], priority: 5,
+        },
+      ]);
+      const featuresPath = join(TEST_SPEC_DIR, "features.json");
+      writeFileSync(featuresPath, featuresJson);
+
+      const { stdout, exitCode } = runCli(["init", "--from-features", featuresPath]);
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("5 features");
+
+      // Verify rich fields were stored in database
+      initDatabase(TEST_DB_PATH);
+      const features = getFeatures();
+
+      const f1 = features.find(f => f.id === "F-1");
+      expect(f1?.problemType).toBe("manual_workaround");
+      expect(f1?.urgency).toBe("blocking_work");
+      expect(f1?.primaryUser).toBe("developers");
+      expect(f1?.integrationScope).toBe("standalone");
+
+      const f2 = features.find(f => f.id === "F-2");
+      expect(f2?.problemType).toBe("impossible");
+      expect(f2?.primaryUser).toBe("end_users");
+
+      // F-5 has no rich fields - should be null/undefined (DB stores null)
+      const f5 = features.find(f => f.id === "F-5");
+      expect(f5?.problemType).toBeFalsy();
+    });
+
+    it("should work with --batch and --from-features combined", () => {
+      mkdirSync(TEST_SPEC_DIR, { recursive: true });
+      const featuresJson = JSON.stringify([
+        { id: "F-1", name: "Feature A", description: "Desc A", dependencies: [], priority: 1 },
+        { id: "F-2", name: "Feature B", description: "Desc B", dependencies: [], priority: 2 },
+        { id: "F-3", name: "Feature C", description: "Desc C", dependencies: [], priority: 3 },
+        { id: "F-4", name: "Feature D", description: "Desc D", dependencies: [], priority: 4 },
+        { id: "F-5", name: "Feature E", description: "Desc E", dependencies: [], priority: 5 },
+      ]);
+      const featuresPath = join(TEST_SPEC_DIR, "features.json");
+      writeFileSync(featuresPath, featuresJson);
+
+      const { stdout, exitCode } = runCli(["init", "--batch", "--from-features", featuresPath]);
+
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain("5 features");
+      expect(existsSync(TEST_DB_PATH)).toBe(true);
+    });
+
+    it("should not output interview prompt with --batch flag and description", () => {
+      // This calls Claude for decomposition — will fail in test (Claude unavailable/timeout)
+      // but should NOT show the interactive interview prompt
+      const result = spawnSync("bun", ["run", CLI_PATH, "init", "--batch", "A task management app"], {
+        encoding: "utf-8",
+        cwd: TEST_PROJECT_DIR,
+        env: { ...process.env, PATH: "/usr/bin:/bin" }, // Remove claude from PATH to fail fast
+        timeout: 5000,
+      });
+      const stdout = result.stdout?.toString() ?? "";
+      const stderr = result.stderr?.toString() ?? "";
+
+      // Should NOT output the interactive interview prompt
+      expect(stdout).not.toContain("SPECFLOW INIT: Interview Phase");
+      expect(stdout).not.toContain("Copy this prompt");
+      // Should fail (Claude not available) or error
+      expect(result.status).not.toBe(0);
+    });
+  });
+
   describe("validation", () => {
     it("should reject features file with invalid JSON", () => {
       mkdirSync(TEST_SPEC_DIR, { recursive: true });

@@ -320,6 +320,71 @@ export interface DecomposeOptions {
 }
 
 /**
+ * Decompose an app description into features using Claude (batch mode)
+ * Unlike decomposeSpec, this takes a raw description string instead of a file path
+ */
+export async function decomposeDescription(
+  description: string,
+  options: DecomposeOptions = {}
+): Promise<DecomposedFeature[]> {
+  const { minFeatures = 5, maxFeatures = 20 } = options;
+
+  const prompt = `You are decomposing an application into implementable features for a spec-driven development workflow.
+
+## Application Description
+
+${description}
+
+## Instructions
+
+Decompose this application into ${minFeatures}-${maxFeatures} independent, implementable features.
+
+Each feature should be:
+- Completable in 1-4 hours of focused work
+- Independently testable
+- A user-visible capability, not an internal module
+
+Output a JSON array (no markdown, no code fences, just raw JSON) with this structure:
+[
+  {
+    "id": "F-1",
+    "name": "Feature name",
+    "description": "What it does in 1-2 sentences",
+    "dependencies": [],
+    "priority": 1,
+    "problemType": "manual_workaround|impossible|scattered|quality_issues",
+    "urgency": "external_deadline|growing_pain|blocking_work|user_demand",
+    "primaryUser": "developers|end_users|admins|mixed",
+    "integrationScope": "standalone|extends_existing|multiple_integrations|external_apis"
+  }
+]
+
+Rules:
+- Order features by implementation dependency
+- Earlier features should NOT depend on later ones
+- Include rich decomposition fields (problemType, urgency, primaryUser, integrationScope) for each feature
+- Output ONLY the JSON array, nothing else`;
+
+  const result = spawnSync("claude", ["--print", "--dangerously-skip-permissions", prompt], {
+    encoding: "utf-8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Claude command failed: ${result.stderr}`);
+  }
+
+  const features = parseDecompositionOutput(result.stdout);
+
+  const errors = validateDecomposedFeatures(features, { minFeatures, maxFeatures });
+  if (errors.length > 0) {
+    throw new Error(`Decomposition validation failed:\n${errors.join("\n")}`);
+  }
+
+  return assignPriorities(features);
+}
+
+/**
  * Decompose an app specification into features using Claude
  */
 export async function decomposeSpec(

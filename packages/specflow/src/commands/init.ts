@@ -22,6 +22,7 @@ import {
   validateDecomposedFeatures,
   assignPriorities,
   decomposeSpec,
+  decomposeDescription,
   MIN_FEATURES_HARD_FLOOR,
   DEFAULT_MIN_FEATURES,
   DEFAULT_MAX_FEATURES,
@@ -34,6 +35,7 @@ export interface InitOptions {
   maxFeatures?: string;
   fromFeatures?: string;
   fromSpec?: string;
+  batch?: boolean;
   force?: boolean;
 }
 
@@ -66,12 +68,21 @@ export async function initCommand(
         minFeatures: options.minFeatures ? parseInt(options.minFeatures) : undefined,
         maxFeatures: options.maxFeatures ? parseInt(options.maxFeatures) : undefined,
       });
+    } else if (description && options.batch) {
+      // Batch mode: non-interactive decomposition via Claude
+      features = await decomposeDescription(description, {
+        minFeatures: options.minFeatures ? parseInt(options.minFeatures) : undefined,
+        maxFeatures: options.maxFeatures ? parseInt(options.maxFeatures) : undefined,
+      });
     } else if (description) {
-      // Output prompt for Task tool to run Interview and create features
+      // Interactive mode: output prompt for Task tool to run Interview
       outputInterviewPrompt(description, projectPath, options);
       return;
     } else {
       console.error("Error: Please provide a description or use --from-features/--from-spec.");
+      if (options.batch) {
+        console.error("Batch mode requires a description argument or --from-features/--from-spec.");
+      }
       process.exit(1);
     }
 
@@ -121,6 +132,16 @@ export async function initCommand(
         name: feature.name,
         description: feature.description,
         priority: feature.priority,
+        problemType: feature.problemType,
+        urgency: feature.urgency,
+        primaryUser: feature.primaryUser,
+        integrationScope: feature.integrationScope,
+        usageContext: feature.usageContext,
+        dataRequirements: feature.dataRequirements,
+        performanceRequirements: feature.performanceRequirements,
+        priorityTradeoff: feature.priorityTradeoff,
+        uncertainties: feature.uncertainties,
+        clarificationNeeded: feature.clarificationNeeded,
       });
     }
 
@@ -303,15 +324,31 @@ function loadFeaturesFromFile(filePath: string): DecomposedFeature[] {
       throw new Error("Features file must contain a JSON array");
     }
 
-    return parsed.map((item, index) => ({
-      id: String(item.id ?? `F-${index + 1}`),
-      name: String(item.name ?? ""),
-      description: String(item.description ?? ""),
-      dependencies: Array.isArray(item.dependencies)
-        ? item.dependencies.map(String)
-        : [],
-      priority: typeof item.priority === "number" ? item.priority : index + 1,
-    }));
+    return parsed.map((item, index) => {
+      const feature: DecomposedFeature = {
+        id: String(item.id ?? `F-${index + 1}`),
+        name: String(item.name ?? ""),
+        description: String(item.description ?? ""),
+        dependencies: Array.isArray(item.dependencies)
+          ? item.dependencies.map(String)
+          : [],
+        priority: typeof item.priority === "number" ? item.priority : index + 1,
+      };
+
+      // Parse rich decomposition fields if present
+      if (item.problemType) feature.problemType = item.problemType;
+      if (item.urgency) feature.urgency = item.urgency;
+      if (item.primaryUser) feature.primaryUser = item.primaryUser;
+      if (item.integrationScope) feature.integrationScope = item.integrationScope;
+      if (item.usageContext) feature.usageContext = item.usageContext;
+      if (item.dataRequirements) feature.dataRequirements = item.dataRequirements;
+      if (item.performanceRequirements) feature.performanceRequirements = item.performanceRequirements;
+      if (item.priorityTradeoff) feature.priorityTradeoff = item.priorityTradeoff;
+      if (Array.isArray(item.uncertainties)) feature.uncertainties = item.uncertainties.map(String);
+      if (item.clarificationNeeded) feature.clarificationNeeded = String(item.clarificationNeeded);
+
+      return feature;
+    });
   } catch (e) {
     if (e instanceof SyntaxError) {
       throw new Error(`Failed to parse features file: ${e.message}`);
