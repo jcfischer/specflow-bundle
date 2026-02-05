@@ -12,7 +12,7 @@
  */
 
 import { join } from "path";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import {
   initDatabase,
   closeDatabase,
@@ -24,7 +24,6 @@ import {
   getDbPath,
   dbExists,
 } from "../lib/database";
-import { validateFeatureCompletion } from "./complete";
 import type { Feature } from "../types";
 
 export interface ImplementCommandOptions {
@@ -269,39 +268,34 @@ export async function implementCommand(
       process.exit(1);
     }
 
-    // CRITICAL: Validate all required files exist
-    const validation = validateFeatureCompletion(feature.specPath);
+    // Validate pre-implementation files exist (spec, plan, tasks)
+    // Note: docs.md and verify.md are created DURING implementation,
+    // so we don't check for them here — that's for 'specflow complete'.
+    const specFile = join(feature.specPath, "spec.md");
+    const planFile = join(feature.specPath, "plan.md");
+    const tasksFile = join(feature.specPath, "tasks.md");
+    const specExists = existsSync(specFile);
+    const planExists = existsSync(planFile);
+    const tasksExists = existsSync(tasksFile);
 
-    if (!validation.valid) {
+    if (!specExists || !planExists || !tasksExists) {
       console.error("═".repeat(60));
-      console.error("IMPLEMENTATION BLOCKED - SpecFlow workflow incomplete");
+      console.error("IMPLEMENTATION BLOCKED - SpecFlow phases incomplete");
       console.error("═".repeat(60));
       console.error("");
       console.error(`Feature: ${feature.id} - ${feature.name}`);
       console.error("");
-      console.error("Missing required files:");
-      for (const error of validation.errors) {
-        console.error(`  ✗ ${error}`);
-      }
-      console.error("");
-      console.error("The SpecFlow workflow requires completing all phases:");
-      console.error("  1. SPECIFY → spec.md   (requirements and scope)");
-      console.error("  2. PLAN    → plan.md   (technical approach)");
-      console.error("  3. TASKS   → tasks.md  (implementation steps)");
-      console.error("  4. IMPLEMENT           (this command)");
-      console.error("");
       console.error("Current file status:");
-      console.error(`  spec.md:  ${validation.files.specExists ? "✓ exists" : "✗ missing"}`);
-      console.error(`  plan.md:  ${validation.files.planExists ? "✓ exists" : "✗ missing"}`);
-      console.error(`  tasks.md: ${validation.files.tasksExists ? "✓ exists" : "✗ missing"}`);
+      console.error(`  spec.md:  ${specExists ? "✓ exists" : "✗ missing"}`);
+      console.error(`  plan.md:  ${planExists ? "✓ exists" : "✗ missing"}`);
+      console.error(`  tasks.md: ${tasksExists ? "✓ exists" : "✗ missing"}`);
       console.error("");
 
-      // Suggest next step
-      if (!validation.files.specExists) {
+      if (!specExists) {
         console.error(`Next: Run 'specflow specify ${feature.id}'`);
-      } else if (!validation.files.planExists) {
+      } else if (!planExists) {
         console.error(`Next: Run 'specflow plan ${feature.id}'`);
-      } else if (!validation.files.tasksExists) {
+      } else {
         console.error(`Next: Run 'specflow tasks ${feature.id}'`);
       }
 
