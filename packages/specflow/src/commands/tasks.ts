@@ -7,6 +7,7 @@ import { join } from "path";
 import { existsSync, readFileSync } from "fs";
 import { spawn } from "child_process";
 import { createInterface } from "readline";
+import { isHeadlessMode, runClaudeHeadless } from "../lib/headless";
 import {
   initDatabase,
   closeDatabase,
@@ -79,8 +80,10 @@ export async function tasksCommand(
       process.exit(1);
     }
 
+    // In headless mode, force autoChain to "always" (skip readline prompt)
+    const autoChainOverride = isHeadlessMode() ? "always" : options.autoChain;
     // Get auto-chain configuration for display
-    const autoChainConfig = getAutoChainConfig(options.autoChain, projectPath);
+    const autoChainConfig = getAutoChainConfig(autoChainOverride, projectPath);
 
     console.log(`\n📝 Starting TASKS phase for: ${feature.id} - ${feature.name}\n`);
     console.log(`Auto-chain: ${getAutoChainDescription(autoChainConfig)}`);
@@ -285,6 +288,25 @@ async function runClaude(
   prompt: string,
   cwd: string
 ): Promise<{ success: boolean; output: string; error?: string }> {
+  // Headless mode: use claude -p --output-format json
+  if (isHeadlessMode()) {
+    console.log("[headless] Running tasks phase via claude -p...");
+    const systemPrompt =
+      "You are a task breakdown agent. Follow the instructions exactly. " +
+      "Write the tasks file to disk at the path specified. " +
+      "Output [PHASE COMPLETE: TASKS] when done.";
+    const result = await runClaudeHeadless(prompt, {
+      systemPrompt,
+      cwd,
+      timeout: 180_000,
+    });
+    if (result.output) {
+      process.stdout.write(result.output);
+    }
+    return result;
+  }
+
+  // Interactive mode: unchanged
   return new Promise((resolve) => {
     const proc = spawn("claude", ["--print", "--dangerously-skip-permissions", prompt], {
       cwd,

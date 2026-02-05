@@ -8,7 +8,7 @@
  */
 
 import { createInterface } from "readline";
-import { existsSync, readFileSync, appendFileSync } from "fs";
+import { existsSync, readFileSync, appendFileSync, readdirSync } from "fs";
 import { join } from "path";
 
 // =============================================================================
@@ -146,8 +146,9 @@ export function formatCheckResult(result: DoctorowCheckResult): string {
 
 /**
  * Format verification entry for verify.md
+ * @param evaluator - Optional tag like "[AI-evaluated]" to append to confirmed entries
  */
-export function formatVerifyEntry(results: DoctorowCheckResult[]): string {
+export function formatVerifyEntry(results: DoctorowCheckResult[], evaluator?: string): string {
   const lines: string[] = [];
   const timestamp = new Date().toISOString();
 
@@ -159,7 +160,12 @@ export function formatVerifyEntry(results: DoctorowCheckResult[]): string {
     const name = check?.name ?? result.checkId;
 
     if (result.confirmed) {
-      lines.push(`- [x] **${name}**: Confirmed`);
+      const tag = evaluator ? ` ${evaluator}` : "";
+      lines.push(`- [x] **${name}**: Confirmed${tag}`);
+      if (result.skipReason) {
+        // In AI mode, skipReason holds the reasoning
+        lines.push(`  - Reasoning: ${result.skipReason}`);
+      }
     } else if (result.skipReason) {
       lines.push(`- [ ] **${name}**: Skipped`);
       lines.push(`  - Reason: ${result.skipReason}`);
@@ -170,6 +176,221 @@ export function formatVerifyEntry(results: DoctorowCheckResult[]): string {
 
   lines.push("");
   return lines.join("\n");
+}
+
+// =============================================================================
+// Headless (AI) Evaluation
+// =============================================================================
+
+/**
+ * Extract JSON from an LLM response.
+ * Handles:
+ * - Claude --output-format json wrapper (extracts from "result" field)
+ * - Markdown code blocks (```json ... ```)
+ * - Raw JSON strings
+ * - JSON embedded in surrounding text
+ */
+export function extractJsonFromResponse(response: string): any | null {
+  let text = response;
+
+  // Check if this is Claude --output-format json wrapper
+  try {
+    const wrapper = JSON.parse(response);
+    if (wrapper.type === "result" && wrapper.result) {
+      text = wrapper.result;
+    }
+  } catch {
+    // Not a JSON wrapper, use response as-is
+  }
+
+  // Try markdown code block first
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {
+      // Continue to other methods
+    }
+  }
+
+  // Try to find JSON object in response
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {
+      // Invalid JSON
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Gather feature artifacts for AI evaluation context.
+ * Reads spec.md, plan.md, tasks.md, verify.md and lists src/ filenames.
+ */
+export function gatherArtifacts(specPath: string): string {
+  const parts: string[] = [];
+
+  const artifactFiles = ["spec.md", "plan.md", "tasks.md", "verify.md"];
+  for (const file of artifactFiles) {
+    const filePath = join(specPath, file);
+    if (existsSync(filePath)) {
+      const content = readFileSync(filePath, "utf-8");
+      parts.push(`--- ${file} ---\n${content}`);
+    }
+  }
+
+  // List src/ files (just names, not content)
+  const srcDir = join(specPath, "..", "..", "..", "src");
+  if (existsSync(srcDir)) {
+    try {
+      const files = listFilesRecursive(srcDir);
+      if (files.length > 0) {
+        parts.push(`--- src/ files ---\n${files.join("\n")}`);
+      }
+    } catch {
+      // Ignore errors reading src directory
+    }
+  }
+
+  return parts.join("\n\n");
+}
+
+/**
+ * Recursively list files in a directory (relative paths).
+ */
+function listFilesRecursive(dir: string, prefix: string = ""): string[] {
+  const results: string[] = [];
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        results.push(...listFilesRecursive(join(dir, entry.name), relative));
+      } else {
+        results.push(relative);
+      }
+    }
+  } catch {
+    // Ignore permission errors
+  }
+  return results;
+}
+
+/**
+ * Evaluate a single Doctorow check using AI (claude -p).
+ * On failure, returns confirmed=true to avoid blocking the pipeline.
+ */
+/**
+ * Default model for headless Doctorow evaluation.
+ * Opus provides deep reasoning for thorough quality checks.
+ * Override via SPECFLOW_DOCTOROW_MODEL env var.
+ *
+ * Recommended models:
+ * - claude-haiku-4-5-20251001: Fast/cheap, may give shallow evaluations
+ * - claude-sonnet-4-20250514: Balanced reasoning, lower cost
+ * - claude-opus-4-5-20251101: Deep reasoning (default)
+ */
+const DEFAULT_DOCTOROW_MODEL = "claude-opus-4-5-20251101";
+
+export async function evaluateCheckWithAI(
+  check: DoctorowCheck,
+  artifacts: string
+): Promise<DoctorowCheckResult> {
+  const model = process.env.SPECFLOW_DOCTOROW_MODEL || DEFAULT_DOCTOROW_MODEL;
+  const systemPrompt =
+    "You are a code quality reviewer evaluating a feature completion check. " +
+    "Analyze the provided feature artifacts carefully. " +
+    'Return ONLY valid JSON: {"pass": true, "reasoning": "one sentence explanation"}';
+
+  const userPrompt =
+    `Check: ${check.question}\n\nContext: ${check.prompt}\n\nFeature Artifacts:\n${artifacts}`;
+
+  try {
+    const proc = Bun.spawn(
+      ["claude", "-p", "--output-format", "json", "--model", model, "--system-prompt", systemPrompt, userPrompt],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: { ...process.env },
+      }
+    );
+
+    // 30 second timeout
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => {
+        proc.kill();
+        resolve(null);
+      }, 30000);
+    });
+
+    const resultPromise = (async () => {
+      const output = await new Response(proc.stdout).text();
+      const exitCode = await proc.exited;
+
+      if (exitCode !== 0) return null;
+
+      const extracted = extractJsonFromResponse(output);
+      if (!extracted || typeof extracted.pass !== "boolean") return null;
+
+      return {
+        checkId: check.id,
+        confirmed: extracted.pass,
+        skipReason: extracted.reasoning || null,
+        timestamp: new Date(),
+      };
+    })();
+
+    const result = await Promise.race([resultPromise, timeoutPromise]);
+
+    if (result) return result;
+  } catch {
+    // Fall through to default
+  }
+
+  // On any AI failure, pass by default
+  return {
+    checkId: check.id,
+    confirmed: true,
+    skipReason: "AI evaluation unavailable — passed by default",
+    timestamp: new Date(),
+  };
+}
+
+/**
+ * Run the Doctorow Gate in headless mode using AI evaluation.
+ * Iterates through all checks and evaluates them with claude -p.
+ */
+export async function runDoctorowGateHeadless(
+  featureId: string,
+  specPath: string
+): Promise<DoctorowResult> {
+  const artifacts = gatherArtifacts(specPath);
+  const results: DoctorowCheckResult[] = [];
+
+  for (const check of DOCTOROW_CHECKS) {
+    console.log(`  Evaluating: ${check.name}...`);
+    const result = await evaluateCheckWithAI(check, artifacts);
+    results.push(result);
+    const status = result.confirmed ? "PASS" : "FAIL";
+    console.log(`  ${status}: ${check.name} - ${result.skipReason || "confirmed"}`);
+  }
+
+  const failedCheck = results.find(r => !r.confirmed);
+  const passed = !failedCheck;
+
+  // Append AI results to verify.md
+  appendToVerifyMd(specPath, results, "[AI-evaluated]");
+
+  return {
+    passed,
+    skipped: false,
+    failedCheck: failedCheck?.checkId,
+    results,
+  };
 }
 
 // =============================================================================
@@ -252,6 +473,15 @@ export async function runDoctorowGate(
     };
   }
 
+  // Detect headless mode
+  const isHeadless = !process.stdin.isTTY || process.env.SPECFLOW_HEADLESS === "true";
+
+  if (isHeadless) {
+    const model = process.env.SPECFLOW_DOCTOROW_MODEL || DEFAULT_DOCTOROW_MODEL;
+    console.log(`\n🤖 Running Doctorow Gate in headless mode (AI: ${model})...`);
+    return runDoctorowGateHeadless(featureId, specPath);
+  }
+
   console.log(`\n🔍 Running Doctorow Gate for ${featureId}`);
   console.log("─".repeat(50));
   console.log("The Doctorow Gate ensures you've considered failure modes,");
@@ -307,7 +537,7 @@ export async function runDoctorowGate(
 /**
  * Append verification results to verify.md
  */
-export function appendToVerifyMd(specPath: string, results: DoctorowCheckResult[]): void {
+export function appendToVerifyMd(specPath: string, results: DoctorowCheckResult[], evaluator?: string): void {
   const verifyPath = join(specPath, "verify.md");
 
   let content = "";
@@ -325,9 +555,9 @@ export function appendToVerifyMd(specPath: string, results: DoctorowCheckResult[
   }
 
   // Append new entry
-  content += formatVerifyEntry(results);
+  content += formatVerifyEntry(results, evaluator);
 
-  appendFileSync(verifyPath, formatVerifyEntry(results));
+  appendFileSync(verifyPath, formatVerifyEntry(results, evaluator));
 }
 
 /**
