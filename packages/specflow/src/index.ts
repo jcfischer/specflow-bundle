@@ -52,6 +52,7 @@ program
   .option("--max-features <n>", "Maximum features to generate", "20")
   .option("--from-features <file>", "Load features from JSON file")
   .option("--from-spec <file>", "Decompose features from spec file")
+  .option("--batch", "Batch mode: non-interactive init (skips interview, uses Claude to decompose)")
   .option("--force", "Overwrite existing database")
   .action(initCommand);
 
