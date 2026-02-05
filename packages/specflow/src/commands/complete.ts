@@ -29,6 +29,7 @@ import { runDoctorowGate, isDoctorowVerified } from "../lib/doctorow";
 export interface CompleteCommandOptions {
   force?: boolean;
   skipDoctorow?: boolean;
+  headless?: boolean;
 }
 
 /**
@@ -339,7 +340,10 @@ export async function completeCommand(
         const doctorowResult = await runDoctorowGate(
           featureId,
           feature.specPath,
-          options.skipDoctorow ?? false
+          {
+            skipFlag: options.skipDoctorow ?? false,
+            headless: options.headless,
+          }
         );
 
         if (!doctorowResult.passed && !doctorowResult.skipped) {

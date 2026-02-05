@@ -103,7 +103,8 @@ program
   .argument("<feature-id>", "Feature ID to mark complete (e.g., F-1)")
   .option("--force", "Bypass validation (not recommended)")
   .option("--skip-doctorow", "Skip the Doctorow Gate checklist")
-  .action((featureId, options) => completeCommand(featureId, { force: options.force, skipDoctorow: options.skipDoctorow }));
+  .option("--headless", "Run Doctorow Gate in headless mode (auto-detected in non-TTY)")
+  .action((featureId, options) => completeCommand(featureId, { force: options.force, skipDoctorow: options.skipDoctorow, headless: options.headless }));
 
 program
   .command("validate")
