@@ -5,6 +5,7 @@ bun.lock
 # Build outputs
 dist/
 *.tsbuildinfo
+*.bun-build
 
 # Database files
 *.db
