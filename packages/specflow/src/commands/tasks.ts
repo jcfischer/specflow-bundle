@@ -4,10 +4,10 @@
  */
 
 import { join } from "path";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { spawn } from "child_process";
 import { createInterface } from "readline";
-import { isHeadlessMode, runClaudeHeadless } from "../lib/headless";
+import { isHeadlessMode, runClaudeHeadless, extractMarkdownArtifact } from "../lib/headless";
 import {
   initDatabase,
   closeDatabase,
@@ -109,6 +109,16 @@ export async function tasksCommand(
 
     if (result.success) {
       const tasksFile = join(feature.specPath, "tasks.md");
+
+      // In headless mode, claude -p can't write files — extract tasks from output
+      if (!existsSync(tasksFile) && isHeadlessMode() && result.output) {
+        const extracted = extractMarkdownArtifact(result.output);
+        if (extracted) {
+          writeFileSync(tasksFile, extracted);
+          console.log("[headless] Extracted tasks from Claude output and wrote to tasks.md");
+        }
+      }
+
       if (existsSync(tasksFile)) {
         console.log("\n─".repeat(60));
         console.log(`\n✓ TASKS phase complete for ${featureId}`);
@@ -128,10 +138,12 @@ export async function tasksCommand(
       } else {
         console.log("\n⚠ Claude finished but tasks.md was not created");
         updateFeaturePhase(featureId, "plan");
+        process.exit(1);
       }
     } else {
       console.error(`\n✗ TASKS phase failed: ${result.error}`);
       updateFeaturePhase(featureId, "plan");
+      process.exit(1);
     }
   } finally {
     closeDatabase();
@@ -293,8 +305,9 @@ async function runClaude(
     console.log("[headless] Running tasks phase via claude -p...");
     const systemPrompt =
       "You are a task breakdown agent. Follow the instructions exactly. " +
-      "Write the tasks file to disk at the path specified. " +
-      "Output [PHASE COMPLETE: TASKS] when done.";
+      "Output the complete task breakdown as markdown. " +
+      "Start with a # heading. " +
+      "Output [PHASE COMPLETE: TASKS] after the tasks content.";
     const result = await runClaudeHeadless(prompt, {
       systemPrompt,
       cwd,

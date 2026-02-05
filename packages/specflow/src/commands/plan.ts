@@ -4,13 +4,13 @@
  */
 
 import { join, dirname } from "path";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-import { isHeadlessMode, runClaudeHeadless } from "../lib/headless";
+import { isHeadlessMode, runClaudeHeadless, extractMarkdownArtifact } from "../lib/headless";
 import {
   initDatabase,
   closeDatabase,
@@ -101,6 +101,16 @@ export async function planCommand(
 
     if (result.success) {
       const planFile = join(feature.specPath, "plan.md");
+
+      // In headless mode, claude -p can't write files — extract plan from output
+      if (!existsSync(planFile) && isHeadlessMode() && result.output) {
+        const extracted = extractMarkdownArtifact(result.output);
+        if (extracted) {
+          writeFileSync(planFile, extracted);
+          console.log("[headless] Extracted plan from Claude output and wrote to plan.md");
+        }
+      }
+
       if (existsSync(planFile)) {
         console.log("\n─".repeat(60));
         console.log(`\n📐 Plan created: ${planFile}`);
@@ -125,10 +135,12 @@ export async function planCommand(
       } else {
         console.log("\n⚠ Claude finished but plan.md was not created");
         updateFeaturePhase(featureId, "specify");
+        process.exit(1);
       }
     } else {
       console.error(`\n✗ PLAN phase failed: ${result.error}`);
       updateFeaturePhase(featureId, "specify");
+      process.exit(1);
     }
   } finally {
     closeDatabase();
@@ -256,8 +268,9 @@ async function runClaude(
     console.log("[headless] Running plan phase via claude -p...");
     const systemPrompt =
       "You are a technical planning agent. Follow the instructions exactly. " +
-      "Write the plan file to disk at the path specified. " +
-      "Output [PHASE COMPLETE: PLAN] when done.";
+      "Output the complete technical plan as markdown. " +
+      "Start with a # heading. " +
+      "Output [PHASE COMPLETE: PLAN] after the plan content.";
     const result = await runClaudeHeadless(prompt, {
       systemPrompt,
       cwd,
