@@ -6,6 +6,7 @@
 import {
   initDatabase,
   closeDatabase,
+  getFeature,
   getFeatures,
   getStats,
   getDbPath,
@@ -23,6 +24,7 @@ import type { Feature, FeatureStats } from "../types";
 
 export interface StatusOptions {
   json?: boolean;
+  featureId?: string;
 }
 
 /**
@@ -52,6 +54,34 @@ export async function statusCommand(options: StatusOptions): Promise<void> {
 
   try {
     initDatabase(dbPath);
+
+    // Single feature detail view
+    if (options.featureId) {
+      const feature = getFeature(options.featureId);
+      if (!feature) {
+        console.error(`Error: Feature ${options.featureId} not found.`);
+        process.exit(1);
+      }
+      if (options.json) {
+        console.log(JSON.stringify({
+          id: feature.id,
+          name: feature.name,
+          description: feature.description,
+          status: feature.status,
+          phase: feature.phase,
+          priority: feature.priority,
+          specPath: feature.specPath,
+          quickStart: feature.quickStart,
+          createdAt: feature.createdAt.toISOString(),
+          startedAt: feature.startedAt?.toISOString() ?? null,
+          completedAt: feature.completedAt?.toISOString() ?? null,
+        }, null, 2));
+      } else {
+        outputFeatureDetail(feature);
+      }
+      return;
+    }
+
     const features = getFeatures();
     const stats = getStats();
 
@@ -87,6 +117,25 @@ function outputJson(features: Feature[], stats: FeatureStats): void {
     })),
   };
   console.log(JSON.stringify(output, null, 2));
+}
+
+function outputFeatureDetail(feature: Feature): void {
+  console.log(`\n📋 Feature: ${feature.id}\n`);
+  console.log(`  Name:        ${feature.name}`);
+  console.log(`  Description: ${feature.description}`);
+  console.log(`  Status:      ${getStatusIcon(feature.status)} ${feature.status}`);
+  console.log(`  Phase:       ${getPhaseIcon(feature.phase)} ${feature.phase}`);
+  console.log(`  Priority:    ${feature.priority}`);
+  console.log(`  Spec Path:   ${feature.specPath ?? "(not set)"}`);
+  console.log(`  Quick Start: ${feature.quickStart ? "yes" : "no"}`);
+  console.log(`  Created:     ${feature.createdAt.toISOString()}`);
+  if (feature.startedAt) {
+    console.log(`  Started:     ${feature.startedAt.toISOString()}`);
+  }
+  if (feature.completedAt) {
+    console.log(`  Completed:   ${feature.completedAt.toISOString()}`);
+  }
+  console.log("");
 }
 
 function outputTable(features: Feature[], stats: FeatureStats): void {
