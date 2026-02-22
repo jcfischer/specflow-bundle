@@ -7,9 +7,10 @@ The `specflow` CLI is installed at `~/bin/specflow`. All commands below are **ba
 | Operation | Command | Notes |
 |-----------|---------|-------|
 | List features | `specflow status` | **Always run first** to see current state |
+| Feature detail | `specflow status <id>` | Shows all fields including spec_path |
 | Add feature | `specflow add "<name>" "<description>"` | IDs auto-generated (F-1, F-2...) |
 | Remove feature | `specflow remove <id> [--force]` | Keeps spec files unless manually deleted |
-| Edit feature | `specflow edit <id> --name/--description/--priority` | Cannot change ID |
+| Edit feature | `specflow edit <id> --name/--description/--priority/--spec-path` | Cannot change ID |
 | Set phase | `specflow phase <id> <phase>` | none, specify, plan, tasks, implement |
 | Create spec | `specflow specify <id> [--quick] [--batch]` | Creates spec.md, sets phase |
 | Enrich feature | `specflow enrich <id>` | Add missing batch fields interactively |
@@ -37,7 +38,7 @@ The `specflow` CLI is the ONLY interface for feature management. Direct SQLite a
 - Creates orphaned or inconsistent state
 - Breaks the tooling contract
 
-**Exception:** Linking orphaned spec directories (spec_path field only) when CLI has no equivalent command.
+Use `specflow edit <id> --spec-path <path>` to set or update a feature's spec directory path.
 
 ## Artifact Revision
 

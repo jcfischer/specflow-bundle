@@ -74,18 +74,20 @@ program
 
 program
   .command("edit")
-  .description("Edit feature properties (priority, name, description)")
+  .description("Edit feature properties (priority, name, description, spec-path)")
   .argument("<feature-id>", "Feature ID to edit (e.g., F-001)")
   .option("--priority <n>", "Set new priority")
   .option("--name <name>", "Set new name")
   .option("--description <desc>", "Set new description")
+  .option("--spec-path <path>", "Set the spec directory path")
   .action((featureId, options) => editCommand(featureId, options));
 
 program
   .command("status")
   .description("Show feature queue and progress")
+  .argument("[feature-id]", "Optional feature ID to show details for")
   .option("--json", "Output as JSON")
-  .action(statusCommand);
+  .action((featureId, options) => statusCommand({ ...options, featureId }));
 
 program
   .command("run")
