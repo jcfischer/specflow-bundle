@@ -160,8 +160,7 @@ export async function specifyCommand(
       prompt = buildProgressivePrompt(feature, interviewConfig, specPath, appContext);
     }
 
-    // Update phase to specify (in progress)
-    updateFeaturePhase(featureId, "specify");
+    // Set spec path before Claude runs (needed for file creation)
     updateFeatureSpecPath(featureId, specPath);
     if (options.quick) {
       updateFeatureQuickStart(featureId, true);
@@ -187,6 +186,7 @@ export async function specifyCommand(
       }
 
       if (existsSync(specFile)) {
+        updateFeaturePhase(featureId, "specify");
         console.log("\n─".repeat(60));
         console.log(`\n📝 Spec created: ${specFile}`);
 

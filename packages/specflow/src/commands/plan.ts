@@ -91,9 +91,6 @@ export async function planCommand(
     // Build prompt
     const prompt = buildPlanPrompt(feature, specContent);
 
-    // Update phase
-    updateFeaturePhase(featureId, "plan");
-
     console.log("Invoking Claude with SpecFlow plan workflow...\n");
     console.log("─".repeat(60));
 
@@ -112,6 +109,7 @@ export async function planCommand(
       }
 
       if (existsSync(planFile)) {
+        updateFeaturePhase(featureId, "plan");
         console.log("\n─".repeat(60));
         console.log(`\n📐 Plan created: ${planFile}`);
 
