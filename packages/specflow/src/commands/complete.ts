@@ -29,6 +29,7 @@ import { runDoctorowGate, isDoctorowVerified } from "../lib/doctorow";
 export interface CompleteCommandOptions {
   force?: boolean;
   skipDoctorow?: boolean;
+  reviewRequired?: boolean;
 }
 
 /**
@@ -157,6 +158,42 @@ function validateVerifyFile(verifyPath: string): string[] {
   }
 
   return errors;
+}
+
+/**
+ * Check if a PR for the given branch has been approved via GitHub PR reviews.
+ * Returns { approved, reviewCount, prNumber } or null if no PR found.
+ */
+function checkPRReviewStatus(branch: string): {
+  approved: boolean;
+  reviewCount: number;
+  prNumber: number | null;
+} | null {
+  // Find PR for this branch
+  const prResult = spawnSync(
+    "gh",
+    ["pr", "list", "--head", branch, "--state", "open", "--json", "number,reviews", "--limit", "1"],
+    { encoding: "utf-8", timeout: 15000 }
+  );
+
+  if (prResult.status !== 0) return null;
+
+  try {
+    const prs = JSON.parse(prResult.stdout);
+    if (prs.length === 0) return null;
+
+    const pr = prs[0];
+    const reviews: Array<{ state: string }> = pr.reviews ?? [];
+    const approved = reviews.some((r: { state: string }) => r.state === "APPROVED");
+
+    return {
+      approved,
+      reviewCount: reviews.length,
+      prNumber: pr.number,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -385,6 +422,25 @@ export async function completeCommand(
         } else {
           console.log("\n✓ Doctorow Gate passed");
         }
+      }
+    }
+
+    // Code Review Gate (optional, activated by --review-required)
+    if (options.reviewRequired && !options.force) {
+      const branchName = `feat/${featureId}-${feature.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+      const reviewStatus = checkPRReviewStatus(branchName);
+
+      if (!reviewStatus) {
+        console.warn("⚠️  No open PR found for review gate check (branch: " + branchName + ")");
+        console.warn("   Skipping review gate — no PR to check");
+      } else if (!reviewStatus.approved) {
+        console.error(`\n✗ Code review gate failed for PR #${reviewStatus.prNumber}`);
+        console.error(`  ${reviewStatus.reviewCount} review(s) found, none approved`);
+        console.error("  The PR must be approved before completing the feature.");
+        console.error("  Use --force to bypass the review gate.");
+        process.exit(1);
+      } else {
+        console.log(`\n✓ Code review approved (PR #${reviewStatus.prNumber})`);
       }
     }
 

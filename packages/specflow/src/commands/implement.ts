@@ -99,17 +99,29 @@ ${tasks}
 
 ## Instructions
 
+You are an autonomous coding agent. Your task: implement the feature described above, then iterate until ALL tests pass.
+
+### Autonomous Agent Rules
+
+1. **After each edit, run the full test suite** (e.g., \`npm test\` or \`bun test\`).
+2. **3-strike revert policy:** If the same test fails 3 times in a row with the same error, STOP your current approach, revert your changes, and try a fundamentally different implementation strategy.
+3. **3-strategy limit:** If you've tried 3 different strategies without success, create a TaskUpdate summarizing what you tried and why each failed, then stop.
+4. **Never modify test files** unless explicitly asked.
+5. **After all tests pass**, run the linter and fix any issues.
+6. **Start by reading the relevant test files** to understand expected behavior, then implement.
+
 ### Implementation Workflow
 
 Work through tasks in the order specified in tasks.md. For each task:
 
 1. **Read the task** - Understand what needs to be built and where
-2. **Write failing test** - Define expected behavior before writing code
-3. **Confirm failure** - Run test to verify it fails meaningfully
-4. **Write minimal implementation** - Just enough code to pass the test
-5. **Confirm pass** - Run test to verify implementation works
-6. **Refactor if needed** - Clean up while keeping tests green
-7. **Mark task complete** - Update progress tracking table
+2. **Read relevant test files** - Understand expected behavior before writing code
+3. **Write failing test** - Define expected behavior before writing code
+4. **Confirm failure** - Run test to verify it fails meaningfully
+5. **Write minimal implementation** - Just enough code to pass the test
+6. **Confirm pass** - Run test to verify implementation works
+7. **Refactor if needed** - Clean up while keeping tests green
+8. **Mark task complete** - Update progress tracking table
 
 ### Quality Standards
 
