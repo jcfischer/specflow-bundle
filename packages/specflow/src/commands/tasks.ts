@@ -100,8 +100,6 @@ export async function tasksCommand(
 
     const prompt = buildTasksPrompt(feature, specContent, planContent);
 
-    updateFeaturePhase(featureId, "tasks");
-
     console.log("Invoking Claude with SpecFlow tasks workflow...\n");
     console.log("─".repeat(60));
 
@@ -120,6 +118,7 @@ export async function tasksCommand(
       }
 
       if (existsSync(tasksFile)) {
+        updateFeaturePhase(featureId, "tasks");
         console.log("\n─".repeat(60));
         console.log(`\n✓ TASKS phase complete for ${featureId}`);
         console.log(`  Tasks created: ${tasksFile}`);
