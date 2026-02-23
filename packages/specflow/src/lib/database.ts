@@ -548,7 +548,7 @@ export function resetFeature(id: string): void {
   const db = getDb();
 
   db.run(
-    `UPDATE features SET status = 'pending', started_at = NULL, completed_at = NULL WHERE id = ?`,
+    `UPDATE features SET status = 'pending', phase = 'specify', started_at = NULL, completed_at = NULL WHERE id = ?`,
     [id]
   );
 }
