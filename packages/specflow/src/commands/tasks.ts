@@ -62,11 +62,21 @@ export async function tasksCommand(
     }
 
     if (feature.phase !== "plan") {
-      console.log(`Feature ${featureId} is in phase: ${feature.phase}`);
-      if (feature.phase === "tasks" || feature.phase === "implement") {
-        console.log("Tasks phase already complete. Continue with implementation.");
+      // Self-healing: if DB says tasks is done but tasks.md doesn't exist, re-run
+      const tasksFile = feature.specPath ? join(feature.specPath, "tasks.md") : null;
+      const artifactMissing = tasksFile && !existsSync(tasksFile);
+
+      if (artifactMissing) {
+        console.log(`Feature ${featureId} phase is "${feature.phase}" but tasks.md is missing — re-running tasks`);
+        updateFeaturePhase(featureId, "plan");
+        // Fall through to run task generation
+      } else {
+        console.log(`Feature ${featureId} is in phase: ${feature.phase}`);
+        if (feature.phase === "tasks" || feature.phase === "implement") {
+          console.log("Tasks phase already complete. Continue with implementation.");
+        }
+        return;
       }
-      return;
     }
 
     if (!feature.specPath) {

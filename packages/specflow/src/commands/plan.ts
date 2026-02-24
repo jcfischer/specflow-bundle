@@ -58,11 +58,21 @@ export async function planCommand(
     }
 
     if (feature.phase !== "specify") {
-      console.log(`Feature ${featureId} is in phase: ${feature.phase}`);
-      if (feature.phase === "plan" || feature.phase === "tasks" || feature.phase === "implement") {
-        console.log("Plan phase already complete. Continue with next phase.");
+      // Self-healing: if DB says plan is done but plan.md doesn't exist, re-run
+      const planFile = feature.specPath ? join(feature.specPath, "plan.md") : null;
+      const artifactMissing = planFile && !existsSync(planFile);
+
+      if (artifactMissing) {
+        console.log(`Feature ${featureId} phase is "${feature.phase}" but plan.md is missing — re-running plan`);
+        updateFeaturePhase(featureId, "specify");
+        // Fall through to run planning
+      } else {
+        console.log(`Feature ${featureId} is in phase: ${feature.phase}`);
+        if (feature.phase === "plan" || feature.phase === "tasks" || feature.phase === "implement") {
+          console.log("Plan phase already complete. Continue with next phase.");
+        }
+        return;
       }
-      return;
     }
 
     // Check spec.md exists

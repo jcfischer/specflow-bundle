@@ -74,9 +74,19 @@ export async function specifyCommand(
 
     // Check current phase
     if (feature.phase !== "none") {
-      console.log(`Feature ${featureId} is already in phase: ${feature.phase}`);
-      console.log("Use 'specflow reset' to start over, or continue with next phase.");
-      return;
+      // Self-healing: if DB says specify is done but spec.md doesn't exist, re-run
+      const specFile = feature.specPath ? join(feature.specPath, "spec.md") : null;
+      const artifactMissing = specFile && !existsSync(specFile);
+
+      if (artifactMissing) {
+        console.log(`Feature ${featureId} phase is "${feature.phase}" but spec.md is missing — re-running specify`);
+        updateFeaturePhase(featureId, "none");
+        // Fall through to run specification
+      } else {
+        console.log(`Feature ${featureId} is already in phase: ${feature.phase}`);
+        console.log("Use 'specflow reset' to start over, or continue with next phase.");
+        return;
+      }
     }
 
     // In headless mode, auto-enable batch if decomposition data is available
