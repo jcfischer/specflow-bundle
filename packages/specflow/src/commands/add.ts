@@ -2,21 +2,28 @@
  * Add Command
  * Add a new feature to the queue after initial init
  *
- * Auto-generates the next F-XXX ID based on existing features.
+ * Supports explicit feature IDs and auto-detection of existing artifacts.
  * Use this instead of direct database manipulation.
  */
 
+import { existsSync } from "fs";
+import { join, resolve } from "path";
 import {
   initDatabase,
   closeDatabase,
   getFeatures,
+  getFeature,
   addFeature,
   getDbPath,
   dbExists,
+  updateFeaturePhase,
 } from "../lib/database";
+import type { SpecPhase } from "../types";
 
 export interface AddCommandOptions {
   priority?: string;
+  id?: string;
+  specPath?: string;
 }
 
 /**
@@ -55,6 +62,47 @@ function generateNextId(existingFeatures: { id: string }[]): string {
 }
 
 /**
+ * Validate that a feature ID matches the F-NNN pattern
+ */
+function isValidFeatureId(id: string): boolean {
+  return /^F-\d+$/.test(id);
+}
+
+/**
+ * Detect existing artifacts in a spec directory and determine the appropriate phase.
+ * Checks in reverse order (highest phase first): tasks.md > plan.md > spec.md
+ * Returns the phase AFTER the highest detected artifact (i.e., the next phase to run).
+ */
+function detectArtifacts(specPath: string): {
+  phase: SpecPhase;
+  detected: string[];
+} {
+  const absPath = resolve(specPath);
+  const detected: string[] = [];
+
+  const hasSpec = existsSync(join(absPath, "spec.md"));
+  const hasPlan = existsSync(join(absPath, "plan.md"));
+  const hasTasks = existsSync(join(absPath, "tasks.md"));
+
+  if (hasSpec) detected.push("spec.md");
+  if (hasPlan) detected.push("plan.md");
+  if (hasTasks) detected.push("tasks.md");
+
+  // Determine starting phase based on highest artifact found
+  // The phase represents what has been COMPLETED, so we set the phase to the highest completed one
+  let phase: SpecPhase = "none";
+  if (hasTasks) {
+    phase = "tasks";
+  } else if (hasPlan) {
+    phase = "plan";
+  } else if (hasSpec) {
+    phase = "specify";
+  }
+
+  return { phase, detected };
+}
+
+/**
  * Add a new feature to the queue
  */
 export async function addCommand(
@@ -74,8 +122,27 @@ export async function addCommand(
   try {
     initDatabase(dbPath);
 
-    const features = getFeatures();
-    const newId = generateNextId(features);
+    // Determine feature ID: explicit or auto-generated
+    let newId: string;
+    if (options.id) {
+      if (!isValidFeatureId(options.id)) {
+        console.error(`Error: Invalid feature ID '${options.id}'. Must match F-NNN pattern (e.g., F-001, F-104).`);
+        process.exit(1);
+      }
+
+      // Check for duplicate
+      const existing = getFeature(options.id);
+      if (existing) {
+        console.error(`Error: Feature '${options.id}' already exists: ${existing.name}`);
+        process.exit(1);
+      }
+
+      newId = options.id;
+    } else {
+      const features = getFeatures();
+      newId = generateNextId(features);
+    }
+
     const priority = options.priority ? parseInt(options.priority, 10) : 999;
 
     addFeature({
@@ -83,11 +150,33 @@ export async function addCommand(
       name,
       description,
       priority,
+      specPath: options.specPath ?? undefined,
     });
 
     console.log(`Added feature ${newId}: ${name}`);
     console.log(`  Description: ${description}`);
     console.log(`  Priority: ${priority}`);
+
+    // Auto-detect artifacts if spec-path provided
+    if (options.specPath) {
+      console.log(`  Spec Path: ${options.specPath}`);
+
+      if (existsSync(resolve(options.specPath))) {
+        const { phase, detected } = detectArtifacts(options.specPath);
+
+        if (detected.length > 0) {
+          console.log(`  Detected: ${detected.map(d => `${d} ✓`).join(", ")}`);
+
+          if (phase !== "none") {
+            updateFeaturePhase(newId, phase);
+            console.log(`  Starting at phase: ${phase}`);
+          }
+        }
+      } else {
+        console.log(`  Warning: Spec path '${options.specPath}' does not exist yet.`);
+      }
+    }
+
     console.log("");
     console.log(`Next: Run 'specflow specify ${newId}' to create specification.`);
   } finally {
