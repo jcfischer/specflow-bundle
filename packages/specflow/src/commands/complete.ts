@@ -25,10 +25,12 @@ import {
   dbExists,
 } from "../lib/database";
 import { runDoctorowGate, isDoctorowVerified } from "../lib/doctorow";
+import { generateDocs, loadDocGenConfig } from "../lib/doc-generator";
 
 export interface CompleteCommandOptions {
   force?: boolean;
   skipDoctorow?: boolean;
+  skipDocs?: boolean;
   reviewRequired?: boolean;
 }
 
@@ -343,6 +345,33 @@ export async function completeCommand(
       process.exit(1);
     }
 
+    // Auto-generate documentation (docs.md, CHANGELOG) before validation
+    if (!options.skipDocs && !options.force) {
+      console.log("📝 Generating documentation...");
+      const docResult = await generateDocs(
+        projectPath,
+        featureId,
+        feature.name,
+        feature.specPath
+      );
+
+      if (docResult.changelogEntry) {
+        console.log(`  ✓ CHANGELOG entry added`);
+      }
+      if (docResult.docsContent) {
+        console.log(`  ✓ docs.md generated`);
+      }
+      if (docResult.readmeSuggestions) {
+        console.log(`  ✓ README suggestions generated`);
+      }
+      if (docResult.errors.length > 0) {
+        for (const error of docResult.errors) {
+          console.warn(`  ⚠ ${error}`);
+        }
+      }
+      console.log("");
+    }
+
     // Validate all required files exist
     const validation = validateFeatureCompletion(feature.specPath);
 
@@ -374,7 +403,7 @@ export async function completeCommand(
         console.error("  1. spec.md   - Feature specification (specflow specify)");
         console.error("  2. plan.md   - Technical plan (specflow plan)");
         console.error("  3. tasks.md  - Implementation tasks (specflow tasks)");
-        console.error("  4. docs.md   - Documentation updates (README, CLAUDE.md, etc.)");
+        console.error("  4. docs.md   - Documentation updates (auto-generated or manual)");
         console.error("  5. verify.md - End-to-end verification (prove it works)");
         console.error("");
         console.error("Test Coverage Requirements:");

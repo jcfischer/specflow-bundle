@@ -109,8 +109,9 @@ program
   .argument("<feature-id>", "Feature ID to mark complete (e.g., F-1)")
   .option("--force", "Bypass validation (not recommended)")
   .option("--skip-doctorow", "Skip the Doctorow Gate checklist")
+  .option("--skip-docs", "Skip auto-generation of docs.md and CHANGELOG entry")
   .option("--review-required", "Require PR code review approval before completion")
-  .action((featureId, options) => completeCommand(featureId, { force: options.force, skipDoctorow: options.skipDoctorow, reviewRequired: options.reviewRequired }));
+  .action((featureId, options) => completeCommand(featureId, { force: options.force, skipDoctorow: options.skipDoctorow, skipDocs: options.skipDocs, reviewRequired: options.reviewRequired }));
 
 program
   .command("validate")
