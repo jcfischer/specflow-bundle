@@ -5,7 +5,7 @@
 
 import { Database } from "bun:sqlite";
 import { join } from "path";
-import { existsSync, mkdirSync, renameSync } from "fs";
+import { existsSync, mkdirSync, renameSync, readFileSync, appendFileSync, writeFileSync } from "fs";
 import type {
   Feature,
   FeatureStatus,
@@ -118,12 +118,36 @@ export function migrateDatabase(projectPath: string): boolean {
 }
 
 /**
- * Ensure the .specflow directory exists
+ * Ensure the .specflow directory exists and is gitignored
  */
 export function ensureSpecflowDir(projectPath: string): void {
   const specflowDir = join(projectPath, SPECFLOW_DIR);
   if (!existsSync(specflowDir)) {
     mkdirSync(specflowDir, { recursive: true });
+  }
+  ensureGitignoreEntry(projectPath);
+}
+
+/**
+ * Ensure .specflow/ is listed in the project's .gitignore.
+ * Creates .gitignore if it doesn't exist. Appends the entry if missing.
+ */
+function ensureGitignoreEntry(projectPath: string): void {
+  const gitignorePath = join(projectPath, ".gitignore");
+  const entry = `${SPECFLOW_DIR}/`;
+
+  if (existsSync(gitignorePath)) {
+    const content = readFileSync(gitignorePath, "utf-8");
+    // Check if entry already present (exact line match)
+    const lines = content.split("\n").map((l) => l.trim());
+    if (lines.includes(entry) || lines.includes(SPECFLOW_DIR)) {
+      return; // Already gitignored
+    }
+    // Append with a preceding newline if file doesn't end with one
+    const prefix = content.endsWith("\n") ? "" : "\n";
+    appendFileSync(gitignorePath, `${prefix}${entry}\n`);
+  } else {
+    writeFileSync(gitignorePath, `${entry}\n`);
   }
 }
 

@@ -6,6 +6,7 @@ import {
   existsSync,
   mkdirSync,
   writeFileSync,
+  readFileSync,
   rmSync,
 } from "fs";
 import {
@@ -237,6 +238,58 @@ describe("init command", () => {
       expect(stdout).not.toContain("Copy this prompt");
       // Should fail (Claude not available) or error
       expect(result.status).not.toBe(0);
+    });
+  });
+
+  describe("gitignore management", () => {
+    const featuresJson = JSON.stringify([
+      { id: "F-1", name: "A", description: "A", dependencies: [], priority: 1 },
+      { id: "F-2", name: "B", description: "B", dependencies: [], priority: 2 },
+      { id: "F-3", name: "C", description: "C", dependencies: [], priority: 3 },
+      { id: "F-4", name: "D", description: "D", dependencies: [], priority: 4 },
+      { id: "F-5", name: "E", description: "E", dependencies: [], priority: 5 },
+    ]);
+
+    function initWithFeatures() {
+      mkdirSync(TEST_SPEC_DIR, { recursive: true });
+      const featuresPath = join(TEST_SPEC_DIR, "features.json");
+      writeFileSync(featuresPath, featuresJson);
+      return runCli(["init", "--from-features", featuresPath]);
+    }
+
+    it("should create .gitignore with .specflow/ entry when none exists", () => {
+      const { exitCode } = initWithFeatures();
+      expect(exitCode).toBe(0);
+
+      const gitignorePath = join(TEST_PROJECT_DIR, ".gitignore");
+      expect(existsSync(gitignorePath)).toBe(true);
+      const content = readFileSync(gitignorePath, "utf-8");
+      expect(content).toContain(".specflow/");
+    });
+
+    it("should append .specflow/ to existing .gitignore without removing content", () => {
+      const gitignorePath = join(TEST_PROJECT_DIR, ".gitignore");
+      writeFileSync(gitignorePath, "node_modules/\ndist/\n");
+
+      const { exitCode } = initWithFeatures();
+      expect(exitCode).toBe(0);
+
+      const content = readFileSync(gitignorePath, "utf-8");
+      expect(content).toContain("node_modules/");
+      expect(content).toContain("dist/");
+      expect(content).toContain(".specflow/");
+    });
+
+    it("should not duplicate .specflow/ entry if already present", () => {
+      const gitignorePath = join(TEST_PROJECT_DIR, ".gitignore");
+      writeFileSync(gitignorePath, "node_modules/\n.specflow/\n");
+
+      const { exitCode } = initWithFeatures();
+      expect(exitCode).toBe(0);
+
+      const content = readFileSync(gitignorePath, "utf-8");
+      const matches = content.match(/\.specflow\//g);
+      expect(matches).toHaveLength(1);
     });
   });
 
