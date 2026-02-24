@@ -63,6 +63,8 @@ program
   .argument("<name>", "Feature name")
   .argument("<description>", "Feature description")
   .option("--priority <n>", "Priority (default: 999)")
+  .option("--id <id>", "Explicit feature ID (e.g., F-104) instead of auto-generated")
+  .option("--spec-path <path>", "Path to existing spec directory (auto-detects artifacts)")
   .action(addCommand);
 
 program
