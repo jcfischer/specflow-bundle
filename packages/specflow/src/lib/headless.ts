@@ -11,6 +11,7 @@
  * Reference: doctorow.ts evaluateCheckWithAI() for the proven pattern.
  */
 
+import { writeFileSync } from "fs";
 import { extractJsonFromResponse } from "./doctorow";
 
 // =============================================================================
@@ -68,6 +69,23 @@ export async function runClaudeHeadless(
   const model = options.model || process.env.SPECFLOW_MODEL || DEFAULT_MODEL;
   const timeout = options.timeout || DEFAULT_TIMEOUT;
   const cwd = options.cwd || process.cwd();
+
+  // ─── Prompt-output mode ──────────────────────────────────────────
+  // When SPECFLOW_PROMPT_OUTPUT is set, write the prompt as JSON to the
+  // specified file and exit immediately. This allows external launchers
+  // (e.g., ivy-heartbeat) to run Claude with Max OAuth auth instead of
+  // the headless `claude -p` path which lacks Max plan credentials.
+  const promptOutputPath = process.env.SPECFLOW_PROMPT_OUTPUT;
+  if (promptOutputPath) {
+    const promptData = JSON.stringify({
+      prompt,
+      systemPrompt: options.systemPrompt ?? "",
+      model,
+      cwd,
+    });
+    writeFileSync(promptOutputPath, promptData);
+    process.exit(0);
+  }
 
   const args = ["-p", "--output-format", "json", "--model", model];
 
