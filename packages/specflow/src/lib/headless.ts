@@ -82,7 +82,7 @@ export async function runClaudeHeadless(
       stdout: "pipe",
       stderr: "pipe",
       cwd,
-      env: { ...process.env },
+      env: { ...process.env, CLAUDECODE: undefined },
     });
 
     const timeoutPromise = new Promise<null>((resolve) => {
