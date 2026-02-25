@@ -11,7 +11,7 @@
     "start": "bun run src/index.ts",
     "test": "bun test",
     "embed-migrations": "bun run scripts/embed-migrations.ts",
-    "build": "bun run embed-migrations && bun build --compile --outfile=specflow src/index.ts",
+    "build": "bun run embed-migrations",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

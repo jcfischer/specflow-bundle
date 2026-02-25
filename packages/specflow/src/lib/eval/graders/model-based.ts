@@ -6,6 +6,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
+import { spawnSync } from "child_process";
 import { parse as parseYaml } from "yaml";
 import type { Grader } from "./index";
 import type { GradeContext, GradeResult, Rubric, RubricCriterion, TestCase } from "../types";
@@ -473,47 +474,57 @@ export const modelGrader: Grader = {
     // Build grading prompt
     const prompt = buildGradingPrompt(rubric, content);
 
-    // Get API key
+    // Try Anthropic SDK first, fall back to claude CLI (CLAUDE_CODE_OAUTH_TOKEN)
     const apiKey = loadApiKeyFromEnv();
-    if (!apiKey) {
-      return {
-        passed: false,
-        score: null,
-        output: "",
-        error: "ANTHROPIC_API_KEY not found in environment or ~/.claude/.env",
-      };
+    let responseText: string | undefined;
+    let lastError: string | undefined;
+
+    // Attempt 1: Anthropic SDK with API key
+    if (apiKey) {
+      try {
+        const anthropic = new Anthropic({ apiKey });
+        const response = await anthropic.messages.create({
+          model: "claude-3-5-haiku-20241022",
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }],
+        });
+        responseText = response.content
+          .filter((block): block is Anthropic.TextBlock => block.type === "text")
+          .map((block) => block.text)
+          .join("\n");
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
     }
 
-    // Call Claude Haiku
-    try {
-      const anthropic = new Anthropic({ apiKey });
-      const response = await anthropic.messages.create({
-        model: "claude-3-5-haiku-20241022",
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-      });
+    // Attempt 2: claude CLI (uses CLAUDE_CODE_OAUTH_TOKEN for Max subscription auth)
+    if (!responseText) {
+      try {
+        const result = spawnSync("claude", ["--print", "--no-session-persistence", "--model", "haiku", prompt], {
+          encoding: "utf-8",
+          timeout: 120_000,
+          env: { ...process.env, CLAUDECODE: undefined },
+        });
+        if (result.status === 0 && result.stdout) {
+          responseText = result.stdout.trim();
+        } else {
+          lastError = result.stderr?.trim() || `claude CLI exited with status ${result.status}`;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+    }
 
-      // Extract text from response
-      const responseText = response.content
-        .filter((block): block is Anthropic.TextBlock => block.type === "text")
-        .map((block) => block.text)
-        .join("\n");
-
-      // Parse and return result
+    if (responseText) {
       return parseGradingResponse(responseText, rubric);
-    } catch (error) {
-      return {
-        passed: false,
-        score: null,
-        output: "",
-        error: `Claude API error: ${error instanceof Error ? error.message : String(error)}`,
-      };
     }
+
+    return {
+      passed: false,
+      score: null,
+      output: "",
+      error: `Claude eval error: ${lastError ?? "no response from SDK or CLI"}`,
+    };
   },
 };
 
