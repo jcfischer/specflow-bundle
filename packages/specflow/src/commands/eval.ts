@@ -6,7 +6,7 @@
 import { Command } from "commander";
 import { existsSync, writeFileSync } from "fs";
 import { spawnSync } from "child_process";
-import { join } from "path";
+import { join, resolve, dirname } from "path";
 import {
   // Database
   initEvalDatabase,
@@ -112,7 +112,8 @@ async function runSingleFileEval(
 
   // Load rubric - try project-local first, then SpecFlow bundled
   const projectRubricPath = join(projectPath, "evals", "rubrics", `${rubricName}.yaml`);
-  const bundledRubricPath = join(homedir(), ".claude", "skills", "SpecFlow", "evals", "rubrics", `${rubricName}.yaml`);
+  // Resolve bundled rubrics relative to this source file (works in both dev and installed paths)
+  const bundledRubricPath = resolve(dirname(import.meta.filename), '..', '..', 'evals', 'rubrics', `${rubricName}.yaml`);
 
   let rubric;
   try {

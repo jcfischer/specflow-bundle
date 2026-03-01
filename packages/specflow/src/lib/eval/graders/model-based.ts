@@ -6,6 +6,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
+import { resolve, dirname } from "path";
 import { spawnSync } from "child_process";
 import { parse as parseYaml } from "yaml";
 import type { Grader } from "./index";
@@ -435,7 +436,8 @@ export const modelGrader: Grader = {
     // Load rubric - try project-local first, then SpecFlow bundled
     let rubric: Rubric;
     const projectRubricPath = `${rubricsDir}/${rubricName}.yaml`;
-    const bundledRubricPath = `${homedir()}/.claude/skills/SpecFlow/evals/rubrics/${rubricName}.yaml`;
+    // Resolve bundled rubrics relative to this source file (works in both dev and installed paths)
+    const bundledRubricPath = resolve(dirname(import.meta.filename), '..', '..', '..', '..', 'evals', 'rubrics', `${rubricName}.yaml`);
 
     try {
       if (existsSync(projectRubricPath)) {
