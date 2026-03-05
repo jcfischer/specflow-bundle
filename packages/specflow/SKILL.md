@@ -3,6 +3,7 @@ name: SpecFlow
 description: |
   Orchestrates spec-driven development using the `specflow` CLI (installed at ~/bin/specflow).
   Enforces SPECIFY → PLAN → TASKS → IMPLEMENT gated workflow with quality evals.
+  Opt-in extended lifecycle: HARDEN → REVIEW → APPROVE for post-implementation quality gates.
   USE WHEN project has `.specify/` or `.specflow/` directory, user mentions F-1/F-2
   pattern, or user says "spec", "specify", "specflow", "new feature".
 ---
@@ -40,6 +41,11 @@ Run `specflow --help` for full command list.
 | "plan", "architecture", "technical design" | Run PLAN phase | `workflows/sdd-workflow.md` |
 | "tasks", "break down", "implementation units" | Run TASKS phase | `workflows/sdd-workflow.md` |
 | "complete", "finish feature", "mark done" | Run COMPLETE | `workflows/sdd-workflow.md` |
+| "harden", "acceptance test" | Run HARDEN phase | See below |
+| "review", "evidence package" | Run REVIEW phase | See below |
+| "approve", "reject", "gate" | Run APPROVE/REJECT | See below |
+| "inbox", "review queue" | Show inbox | See below |
+| "audit", "drift", "health check" | Run audit | See below |
 | Anti-pattern detected | Reference docs | `docs/ANTI-PATTERNS.md` |
 | Quality gate questions | Reference docs | `docs/QUALITY-GATES.md` |
 | pai-deps integration | Reference docs | `docs/PAI-DEPS-INTEGRATION.md` |
@@ -77,17 +83,18 @@ Before writing ANY implementation code, verify:
 
 ---
 
-## Four-Phase Workflow
+## Gated Workflow
 
 ```
-SPECIFY -> PLAN -> TASKS -> IMPLEMENT
-   |         |        |         |
- What/Why   How    Work Items  Code
-   ▼         ▼        ▼         ▼
-spec.md   plan.md  tasks.md   src/
+SPECIFY → PLAN → TASKS → IMPLEMENT ──┬──→ COMPLETE (classic)
+   |        |       |        |         └──→ HARDEN → REVIEW → APPROVE (extended)
+ What/Why  How   Work Items Code
+   ▼        ▼       ▼        ▼
+spec.md  plan.md tasks.md   src/
 ```
 
 **Gated phases**: Do NOT advance until current phase is validated.
+**Two paths after IMPLEMENT**: Classic (`specflow complete`) or Extended lifecycle (opt-in).
 
 ### Phase 1: Specify (`specflow specify F-N`)
 
@@ -154,6 +161,46 @@ Validates:
 - verify.md has real output (no placeholders)
 - Doctorow Gate passed
 
+### Extended Lifecycle (Opt-in)
+
+After IMPLEMENT, features can enter the extended lifecycle for additional quality gates:
+
+#### Phase 5: Harden (`specflow harden F-N`)
+
+Generates acceptance test templates from spec.md success criteria:
+- AI-generated or static fallback template with `[x] PASS / [x] FAIL / [x] SKIP` checkboxes
+- Human fills the template with actual test results
+- Ingest with `specflow harden F-N --ingest`
+- Phase advances to REVIEW when all tests pass (no failures)
+
+#### Phase 6: Review (`specflow review F-N`)
+
+Compiles evidence package for human review:
+- Automated checks: `bun test` results, `tsc --noEmit` type checking
+- File alignment: verifies backtick-referenced files exist
+- Acceptance test results summary
+- Creates approval gate and writes `review-package.md`
+
+#### Phase 7: Approve/Reject
+
+- `specflow approve F-N [F-N2 ...]` — batch approve pending gates, marks features complete
+- `specflow reject F-N --reason "..."` — writes feedback.md, returns feature to implement phase
+
+#### Inbox (`specflow inbox`)
+
+Priority-ranked review queue:
+- **P0**: Features with failures or blocked status
+- **P1**: Passed review, waiting <24h
+- **P2**: Passed review, waiting ≥24h
+- Suggests batch approve command for clean items
+
+#### Audit (`specflow audit [F-N]`)
+
+Detects spec-reality drift:
+- DB status consistency (phase vs status alignment)
+- Artifact completeness (expected files for current phase)
+- Spec-code alignment (backtick file references exist)
+
 ---
 
 ## Quick Start
@@ -192,6 +239,13 @@ git checkout main && git merge spec/F-1-feature-name
 | `specflow complete F-N` | Mark feature complete |
 | `specflow eval run` | Run quality evaluations |
 | `specflow revise F-N` | Revise artifact based on feedback |
+| `specflow harden F-N` | Generate acceptance test template |
+| `specflow harden F-N --ingest` | Ingest filled acceptance results |
+| `specflow review F-N` | Compile evidence package |
+| `specflow approve F-N` | Approve pending gate(s) |
+| `specflow reject F-N` | Reject with feedback |
+| `specflow inbox` | Priority-ranked review queue |
+| `specflow audit` | Detect spec-reality drift |
 
 See `docs/CLI-REFERENCE.md` for full command reference.
 
@@ -211,7 +265,10 @@ project-root/
 │       ├── plan.md
 │       ├── tasks.md
 │       ├── docs.md
-│       └── verify.md
+│       ├── verify.md
+│       ├── acceptance-test.md   # (extended lifecycle)
+│       ├── review-package.md    # (extended lifecycle)
+│       └── feedback.md          # (on rejection)
 └── src/
 ```
 

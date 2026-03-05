@@ -28,10 +28,11 @@ SpecFlow embraces this truth. Instead of letting AI generate code freely, we for
 
 ![SpecFlow Quality Gates](docs/specflow-quality-gates.png)
 
-### The Four-Phase Workflow
+### The Gated Workflow
 
 ```
-SPECIFY → PLAN → TASKS → IMPLEMENT
+SPECIFY → PLAN → TASKS → IMPLEMENT → HARDEN → REVIEW → APPROVE
+                                       (opt-in extended lifecycle)
 ```
 
 | Phase | What Happens | Gate |
@@ -40,8 +41,11 @@ SPECIFY → PLAN → TASKS → IMPLEMENT
 | **PLAN** | Architecture decisions, data models, failure modes | Human approves design |
 | **TASKS** | Break work into reviewable units with dependencies | Human approves breakdown |
 | **IMPLEMENT** | TDD execution with verification | Tests pass, contracts verified |
+| **HARDEN** | Acceptance test generation and human verification | All ATs pass |
+| **REVIEW** | Evidence compilation (automated checks + ATs) | Human reads review package |
+| **APPROVE** | Human approves or rejects with feedback | Human judgment |
 
-**Each gate requires human approval.** The AI cannot skip ahead. No code gets written until the spec, plan, and tasks are complete.
+**Each gate requires human approval.** The AI cannot skip ahead. No code gets written until the spec, plan, and tasks are complete. The extended lifecycle (HARDEN → REVIEW → APPROVE) is opt-in for projects that need post-implementation quality gates.
 
 ### The Result
 
@@ -135,7 +139,7 @@ cd ~/.claude/skills/SpecFlow && bun install
 **Verify SpecFlow installation:**
 - [ ] `~/.claude/skills/SpecFlow/SKILL.md` exists
 - [ ] `~/.claude/skills/SpecFlow/src/index.ts` exists
-- [ ] `~/.claude/skills/SpecFlow/src/commands/` directory with 19 files
+- [ ] `~/.claude/skills/SpecFlow/src/commands/` directory with 31 files
 - [ ] `~/.claude/skills/SpecFlow/src/lib/` directory with lib files + eval/
 - [ ] `~/.claude/skills/SpecFlow/templates/` directory with 6 files
 - [ ] `~/.claude/skills/SpecFlow/evals/` directory with rubrics
@@ -205,7 +209,7 @@ echo $PATH | grep -q "$HOME/.local/bin" || echo 'export PATH="$HOME/.local/bin:$
 After completing all steps, verify:
 
 - [ ] **SpecFlow** - FULLY installed in `~/.claude/skills/SpecFlow/`
-  - [ ] All 19 command files in `src/commands/`
+  - [ ] All 31 command files in `src/commands/`
   - [ ] All lib files in `src/lib/` including `eval/` subdirectory
   - [ ] All 6 template files in `templates/`
   - [ ] `evals/` directory with rubrics
@@ -251,6 +255,15 @@ specflow contrib-prep F-1 --extract    # Extract to clean contrib branch
 specflow contrib-prep F-1 --verify     # Verify contribution branch
 specflow contrib-prep F-1 --dry-run    # Preview without changes
 
+# Extended lifecycle (opt-in)
+specflow harden F-1          # Generate acceptance test template
+specflow harden F-1 --ingest # Ingest filled acceptance results
+specflow review F-1           # Compile evidence package
+specflow approve F-1 F-2      # Approve pending gates (batch)
+specflow reject F-1 --reason "..." # Reject with feedback
+specflow inbox                # Priority-ranked review queue
+specflow audit                # Detect spec-reality drift
+
 # Quality & management
 specflow eval run            # Run quality evaluations
 specflow phase F-1 implement # Get or set feature phase
@@ -281,7 +294,10 @@ specflow-ui --port 3000      # Launch on port 3000
 ![SpecFlow Full Lifecycle](docs/specflow-full-lifecycle.png)
 
 ```
-SPECIFY -> PLAN -> TASKS -> IMPLEMENT -> CONTRIB-PREP -> RELEASE
+SPECIFY → PLAN → TASKS → IMPLEMENT ──┬──→ COMPLETE (classic path)
+                                      └──→ HARDEN → REVIEW → APPROVE (extended)
+                                                        ↓
+                                               CONTRIB-PREP → RELEASE
 ```
 
 | Phase | What | Output |
@@ -290,10 +306,17 @@ SPECIFY -> PLAN -> TASKS -> IMPLEMENT -> CONTRIB-PREP -> RELEASE
 | **PLAN** | Design architecture, data models | `plan.md` |
 | **TASKS** | Break into reviewable units | `tasks.md` |
 | **IMPLEMENT** | Build with TDD (RED->GREEN->BLUE) | Working code |
+| **HARDEN** | Generate & fill acceptance test templates | `acceptance-test.md` |
+| **REVIEW** | Compile evidence package (automated checks + ATs) | `review-package.md` |
+| **APPROVE** | Human approves or rejects with feedback | Approval gate |
 | **CONTRIB-PREP** | Extract clean contribution from private trunk | Tagged branch |
 | **RELEASE** | Publish verified contribution | Released package |
 
-Each phase is **gated** - you cannot advance until the current phase is validated.
+Each phase is **gated** — you cannot advance until the current phase is validated.
+
+**Two completion paths:**
+- **Classic**: `specflow complete F-N` after implement (existing workflow, unchanged)
+- **Extended**: `specflow harden F-N` → `specflow review F-N` → `specflow approve F-N` (opt-in for projects needing post-implementation quality gates)
 
 ### Quality Gates
 
@@ -340,7 +363,8 @@ SpecFlow's `contrib-prep` command bridges private development with the [pai-coll
 +-------------------------------------------------------------+
 |                    SpecFlow                                  |
 |         (Unified CLI + Spec-Driven Workflow)                 |
-|   specflow specify -> plan -> tasks -> implement             |
+|   specflow specify -> plan -> tasks -> implement              |
+|   (opt-in) -> harden -> review -> approve                    |
 +----------------------------+---------------------------------+
                              | validates against
                              v
