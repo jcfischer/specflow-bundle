@@ -20,6 +20,10 @@ import type {
   DataRequirementsType,
   PerformanceRequirementsType,
   PriorityTradeoffType,
+  HardenResult,
+  ReviewRecord,
+  ApprovalGate,
+  ApprovalStatus,
 } from "../types";
 import { runPendingMigrations, runEmbeddedMigrations, getCurrentVersion } from "./migrations";
 import { EMBEDDED_MIGRATIONS } from "./migrations/embedded";
@@ -765,6 +769,135 @@ export function getStats(): FeatureStats {
     skipped: row.skipped ?? 0,
     percentComplete: total > 0 ? Math.round((complete / total) * 100) : 0,
   };
+}
+
+// =============================================================================
+// Lifecycle Extension: Harden Results
+// =============================================================================
+
+export function getHardenResults(featureId: string): HardenResult[] {
+  const db = getDb();
+  const rows = db.query<{ id: number; feature_id: string; test_name: string; status: string; evidence: string | null; ingested_at: string }, [string]>(
+    `SELECT * FROM harden_results WHERE feature_id = ? ORDER BY id ASC`
+  ).all(featureId);
+
+  return rows.map((r) => ({
+    id: r.id,
+    featureId: r.feature_id,
+    testName: r.test_name,
+    status: r.status as HardenResult["status"],
+    evidence: r.evidence,
+    ingestedAt: new Date(r.ingested_at),
+  }));
+}
+
+export function upsertHardenResult(featureId: string, testName: string, status: string, evidence: string | null): void {
+  const db = getDb();
+  const existing = db.query<{ id: number }, [string, string]>(
+    `SELECT id FROM harden_results WHERE feature_id = ? AND test_name = ?`
+  ).get(featureId, testName);
+
+  if (existing) {
+    db.run(
+      `UPDATE harden_results SET status = ?, evidence = ?, ingested_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [status, evidence, existing.id]
+    );
+  } else {
+    db.run(
+      `INSERT INTO harden_results (feature_id, test_name, status, evidence) VALUES (?, ?, ?, ?)`,
+      [featureId, testName, status, evidence]
+    );
+  }
+}
+
+export function clearHardenResults(featureId: string): void {
+  const db = getDb();
+  db.run(`DELETE FROM harden_results WHERE feature_id = ?`, [featureId]);
+}
+
+// =============================================================================
+// Lifecycle Extension: Review Records
+// =============================================================================
+
+export function getLatestReviewRecord(featureId: string): ReviewRecord | null {
+  const db = getDb();
+  const row = db.query<{ id: number; feature_id: string; reviewed_at: string; passed: number; checks_json: string | null; acceptance_json: string | null }, [string]>(
+    `SELECT * FROM review_records WHERE feature_id = ? ORDER BY id DESC LIMIT 1`
+  ).get(featureId);
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    featureId: row.feature_id,
+    reviewedAt: new Date(row.reviewed_at),
+    passed: row.passed === 1,
+    checksJson: row.checks_json,
+    acceptanceJson: row.acceptance_json,
+  };
+}
+
+export function insertReviewRecord(featureId: string, passed: boolean, checksJson: string, acceptanceJson: string | null): void {
+  const db = getDb();
+  db.run(
+    `INSERT INTO review_records (feature_id, passed, checks_json, acceptance_json) VALUES (?, ?, ?, ?)`,
+    [featureId, passed ? 1 : 0, checksJson, acceptanceJson]
+  );
+}
+
+// =============================================================================
+// Lifecycle Extension: Approval Gates
+// =============================================================================
+
+export function getApprovalGate(featureId: string): ApprovalGate | null {
+  const db = getDb();
+  const row = db.query<{ id: number; feature_id: string; status: string; triggered_at: string; resolved_at: string | null; rejection_reason: string | null }, [string]>(
+    `SELECT * FROM approval_gates WHERE feature_id = ? ORDER BY id DESC LIMIT 1`
+  ).get(featureId);
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    featureId: row.feature_id,
+    status: row.status as ApprovalStatus,
+    triggeredAt: new Date(row.triggered_at),
+    resolvedAt: row.resolved_at ? new Date(row.resolved_at) : null,
+    rejectionReason: row.rejection_reason,
+  };
+}
+
+export function getPendingApprovals(): ApprovalGate[] {
+  const db = getDb();
+  const rows = db.query<{ id: number; feature_id: string; status: string; triggered_at: string; resolved_at: string | null; rejection_reason: string | null }, []>(
+    `SELECT * FROM approval_gates WHERE status = 'pending' ORDER BY triggered_at ASC`
+  ).all();
+
+  return rows.map((r) => ({
+    id: r.id,
+    featureId: r.feature_id,
+    status: r.status as ApprovalStatus,
+    triggeredAt: new Date(r.triggered_at),
+    resolvedAt: r.resolved_at ? new Date(r.resolved_at) : null,
+    rejectionReason: r.rejection_reason,
+  }));
+}
+
+export function insertApprovalGate(featureId: string): void {
+  const db = getDb();
+  db.run(
+    `INSERT INTO approval_gates (feature_id, status) VALUES (?, 'pending')`,
+    [featureId]
+  );
+}
+
+export function resolveApprovalGate(featureId: string, status: "approved" | "rejected", reason?: string): void {
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.run(
+    `UPDATE approval_gates SET status = ?, resolved_at = ?, rejection_reason = ? WHERE feature_id = ? AND status = 'pending'`,
+    [status, now, reason ?? null, featureId]
+  );
 }
 
 // =============================================================================

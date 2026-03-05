@@ -231,6 +231,8 @@ function getStatusIcon(status: string): string {
       return "●";
     case "skipped":
       return "⊘";
+    case "blocked":
+      return "⊗";
     default:
       return "?";
   }
@@ -248,6 +250,12 @@ function getPhaseIcon(phase: string): string {
       return "③";
     case "implement":
       return "④";
+    case "harden":
+      return "⑤";
+    case "review":
+      return "⑥";
+    case "approve":
+      return "⑦";
     default:
       return "○";
   }

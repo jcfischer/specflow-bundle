@@ -10,7 +10,7 @@
 /**
  * Status of a feature in the queue
  */
-export type FeatureStatus = "pending" | "in_progress" | "complete" | "skipped";
+export type FeatureStatus = "pending" | "in_progress" | "complete" | "skipped" | "blocked";
 
 /**
  * Reason for skipping a feature
@@ -26,8 +26,9 @@ export type SkipReason =
 /**
  * SpecFlow phase for a feature
  * Each feature must progress through: specify -> plan -> tasks -> implement
+ * Extended lifecycle adds: harden -> review -> approve (opt-in)
  */
-export type SpecPhase = "none" | "specify" | "plan" | "tasks" | "implement";
+export type SpecPhase = "none" | "specify" | "plan" | "tasks" | "implement" | "harden" | "review" | "approve";
 
 // =============================================================================
 // Feature
@@ -389,4 +390,67 @@ export interface RunResult {
   blocked: boolean;
   /** Reason for blocking (if blocked) */
   blockReason: string | null;
+}
+
+// =============================================================================
+// Lifecycle Extension Types (F-089)
+// =============================================================================
+
+export interface HardenResult {
+  id: number;
+  featureId: string;
+  testName: string;
+  status: "pass" | "fail" | "skip" | "pending";
+  evidence: string | null;
+  ingestedAt: Date;
+}
+
+export interface ReviewRecord {
+  id: number;
+  featureId: string;
+  reviewedAt: Date;
+  passed: boolean;
+  checksJson: string | null;
+  acceptanceJson: string | null;
+}
+
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
+export interface ApprovalGate {
+  id: number;
+  featureId: string;
+  status: ApprovalStatus;
+  triggeredAt: Date;
+  resolvedAt: Date | null;
+  rejectionReason: string | null;
+}
+
+export interface CheckResult {
+  name: string;
+  passed: boolean;
+  duration: number;
+  output?: string;
+}
+
+export interface AlignmentResult {
+  matched: number;
+  missing: string[];
+  references: string[];
+}
+
+export interface InboxItem {
+  featureId: string;
+  name: string;
+  priority: "P0" | "P1" | "P2";
+  verdict: string;
+  timeInQueue: string;
+  timeInQueueMs: number;
+  action: string;
+}
+
+export interface AuditCheckResult {
+  name: string;
+  passed: boolean;
+  message: string;
+  details?: string[];
 }

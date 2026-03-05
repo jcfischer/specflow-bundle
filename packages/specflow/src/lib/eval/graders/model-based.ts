@@ -350,11 +350,18 @@ ${rubric.criteria.map((c) => `    "${c.name}": { "score": 0.0, "reasoning": "1-2
  */
 export function parseGradingResponse(responseText: string, rubric: Rubric): GradeResult {
   try {
-    // Try to extract JSON from markdown code blocks
+    // Try to extract JSON from markdown code blocks.
+    // Prefer explicit ```json blocks first (PAI Algorithm format puts non-JSON code
+    // blocks earlier in the output), then fall back to any code block.
     let jsonText = responseText;
-    const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      jsonText = codeBlockMatch[1].trim();
+    const jsonCodeBlock = responseText.match(/```json\s*([\s\S]*?)```/);
+    if (jsonCodeBlock) {
+      jsonText = jsonCodeBlock[1].trim();
+    } else {
+      const anyCodeBlock = responseText.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+      if (anyCodeBlock) {
+        jsonText = anyCodeBlock[1].trim();
+      }
     }
 
     // Parse JSON

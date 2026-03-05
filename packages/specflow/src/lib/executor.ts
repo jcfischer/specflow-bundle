@@ -169,6 +169,7 @@ export async function executeFeature(
       maxBuffer: 50 * 1024 * 1024, // 50MB buffer
       timeout,
       cwd: context.app.projectPath,
+      env: { ...process.env, SPECFLOW_CODING_AGENT: '1' },
     });
 
     const output = result.stdout ?? "";
@@ -267,6 +268,7 @@ export async function executeFeatureStreaming(
   return new Promise((resolve) => {
     const proc = spawn("claude", ["--print", "--dangerously-skip-permissions", prompt], {
       cwd: context.app.projectPath,
+      env: { ...process.env, SPECFLOW_CODING_AGENT: '1' },
     });
 
     let output = "";

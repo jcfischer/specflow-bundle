@@ -31,6 +31,12 @@ import { specifyAllCommand } from "./commands/specify-all";
 import { enrichCommand } from "./commands/enrich";
 import { contribPrepCommand } from "./commands/contrib-prep";
 import { pipelineCommand } from "./commands/pipeline";
+import { hardenCommand } from "./commands/harden";
+import { reviewCommand } from "./commands/review";
+import { approveCommand } from "./commands/approve";
+import { rejectCommand } from "./commands/reject";
+import { inboxCommand } from "./commands/inbox";
+import { auditCommand } from "./commands/audit";
 
 // =============================================================================
 // Main Program
@@ -274,6 +280,59 @@ program
   .option("--rollback", "Rollback the last applied migration")
   .option("--verify", "Verify migration checksums match")
   .action((options) => migrateCommand({ status: options.status, rollback: options.rollback, verify: options.verify }));
+
+// =============================================================================
+// Lifecycle Extension Commands
+// =============================================================================
+
+program
+  .command("harden")
+  .description("Generate acceptance test templates and ingest filled results")
+  .argument("[feature-id]", "Feature ID to harden (e.g., F-1)")
+  .option("--ingest", "Read filled acceptance-test.md and record results")
+  .option("--status", "Show hardening progress across all features")
+  .option("--all", "Process all features at implement phase")
+  .option("--dry-run", "Preview what would be generated")
+  .action((featureId, options) => hardenCommand(featureId, {
+    ingest: options.ingest,
+    status: options.status,
+    all: options.all,
+    dryRun: options.dryRun,
+  }));
+
+program
+  .command("review")
+  .description("Compile evidence package for human review")
+  .argument("<feature-id>", "Feature ID to review (e.g., F-1)")
+  .option("--json", "Output as JSON")
+  .action((featureId, options) => reviewCommand(featureId, { json: options.json }));
+
+program
+  .command("approve")
+  .description("Approve pending gates for one or more features")
+  .argument("<feature-ids...>", "Feature IDs to approve (e.g., F-1 F-2 F-3)")
+  .action(approveCommand);
+
+program
+  .command("reject")
+  .description("Reject a pending gate for a feature")
+  .argument("<feature-id>", "Feature ID to reject (e.g., F-1)")
+  .option("--reason <text>", "Reason for rejection (required)")
+  .action((featureId, options) => rejectCommand(featureId, { reason: options.reason }));
+
+program
+  .command("inbox")
+  .description("Show priority-ranked review queue of features awaiting approval")
+  .option("--json", "Output as JSON")
+  .option("--verbose", "Show expanded view")
+  .action((options) => inboxCommand({ json: options.json, verbose: options.verbose }));
+
+program
+  .command("audit")
+  .description("Detect spec-reality drift and output a health report")
+  .argument("[feature-id]", "Audit a single feature (e.g., F-1)")
+  .option("--json", "Output as JSON")
+  .action((featureId, options) => auditCommand(featureId, { json: options.json }));
 
 // =============================================================================
 // Parse and Execute
