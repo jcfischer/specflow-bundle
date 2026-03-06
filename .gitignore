@@ -13,7 +13,8 @@ dist/
 *.db-wal
 
 # SpecFlow working files
-.specify/
+.specify/*
+!.specify/specs/
 spec-registry.json
 features.db
 
