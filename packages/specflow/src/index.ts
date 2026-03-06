@@ -247,12 +247,8 @@ program
     })
   );
 
-program
-  .command("pipeline")
-  .description("Run full SpecFlow pipeline for a feature (specify -> plan -> tasks -> implement -> complete)")
-  .argument("<feature-id>", "Feature ID to process (e.g., F-1)")
-  .option("--stop-after <phase>", "Stop after this phase (specify, plan, tasks, implement, complete)")
-  .action((featureId, options) => pipelineCommand(featureId, { stopAfter: options.stopAfter }));
+// Register pipeline command group (visibility + run)
+pipelineCommand(program);
 
 // Register phase command (uses Commander directly for flexibility)
 phaseCommand(program);

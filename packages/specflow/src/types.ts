@@ -454,3 +454,84 @@ export interface AuditCheckResult {
   message: string;
   details?: string[];
 }
+
+// =============================================================================
+// Pipeline Visibility Types (F-090)
+// =============================================================================
+
+export type FailureType =
+  | "typecheck"
+  | "lint"
+  | "test_failure"
+  | "acceptance_failure"
+  | "timeout"
+  | "dependency"
+  | "validation"
+  | "unknown";
+
+export type FailureRoute = "auto-fix" | "retry" | "escalate";
+
+export type PipelineEventType =
+  | "phase.started"
+  | "phase.completed"
+  | "phase.failed"
+  | "gate.pending"
+  | "gate.resolved"
+  | "pipeline.blocked"
+  | "pipeline.clear"
+  | "session.started"
+  | "session.ended";
+
+export interface PipelineFeature {
+  id: string;
+  name: string;
+  phase: SpecPhase;
+  status: FeatureStatus;
+  started_at: string;
+  last_transition: string;
+  session_id: string;
+  blocked_reason: string | null;
+  metrics: PipelineMetrics;
+}
+
+export interface PipelineMetrics {
+  specs_complete?: number;
+  specs_total?: number;
+  tests_passing?: number;
+  tests_total?: number;
+}
+
+export interface PipelineFailure {
+  feature_id: string;
+  phase: SpecPhase;
+  failure_type: FailureType;
+  failure_route: FailureRoute;
+  message: string;
+  occurred_at: string;
+  recovered: boolean;
+  retry_count: number;
+}
+
+export interface PipelineState {
+  version: 1;
+  updated_at: string;
+  project: string;
+  session_id: string;
+  features: PipelineFeature[];
+  failures: PipelineFailure[];
+}
+
+export interface PipelineEvent {
+  type: PipelineEventType;
+  timestamp: string;
+  session_id: string;
+  feature_id?: string;
+  phase?: SpecPhase;
+  data?: Record<string, unknown>;
+}
+
+export interface NotificationConfig {
+  file: { enabled: boolean; path: string };
+  webhook: { enabled: boolean; url: string | null };
+  hooks: string[];
+}
