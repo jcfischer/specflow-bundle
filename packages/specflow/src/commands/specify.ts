@@ -38,6 +38,7 @@ import {
   writeClarificationFile,
 } from "../lib/batch";
 import type { DecomposedFeature } from "../types";
+import { wrapPhaseExecution } from "../lib/pipeline-interceptor";
 
 export interface SpecifyCommandOptions {
   dryRun?: boolean;
@@ -180,79 +181,78 @@ export async function specifyCommand(
     console.log("\nInvoking Claude with SpecFlow specify workflow...\n");
     console.log("─".repeat(60));
 
-    const result = await runClaude(prompt, projectPath);
+    const specFile = join(specPath, "spec.md");
 
-    if (result.success) {
-      // Check if spec.md was created
-      const specFile = join(specPath, "spec.md");
-
-      // In headless mode, claude -p can't write files — extract spec from output
-      if (!existsSync(specFile) && isHeadlessMode() && result.output) {
-        const extracted = extractMarkdownArtifact(result.output);
-        if (extracted) {
-          writeFileSync(specFile, extracted);
-          console.log("[headless] Extracted spec from Claude output and wrote to spec.md");
+    try {
+      await wrapPhaseExecution(async () => {
+        const result = await runClaude(prompt, projectPath);
+        if (!result.success) {
+          throw new Error(result.error || "Claude execution failed");
         }
-      }
-
-      if (existsSync(specFile)) {
-        updateFeaturePhase(featureId, "specify");
-        console.log("\n─".repeat(60));
-        console.log(`\n📝 Spec created: ${specFile}`);
-
-        // Load configurable thresholds
-        const thresholds = loadThresholds(projectPath);
-        // Use quick-start threshold if in quick mode
-        const threshold = options.quick ? thresholds.quickStartQuality : thresholds.specQuality;
-        const thresholdDecimal = toDecimal(threshold);
-
-        // Run quality gate eval
-        console.log("\n🔍 Running spec quality evaluation...\n");
-        if (options.quick) {
-          console.log(`   ⚡ Quick-start threshold: ${formatThreshold(threshold)} (vs ${formatThreshold(thresholds.specQuality)} standard)`);
-        } else if (thresholds.source === "constitution") {
-          console.log(`   Using threshold from constitution: ${formatThreshold(threshold)}`);
-        }
-        const evalResult = await runSpecEval(specFile, projectPath, thresholdDecimal);
-
-        if (evalResult.passed) {
-          console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}% >= ${formatThreshold(threshold)})`);
-          console.log(`\n✓ SPECIFY phase complete for ${featureId}`);
-          console.log("\nNext: Run 'specflow plan " + featureId + "' for technical planning");
-        } else {
-          // Generate actionable feedback for quality gate failure
-          try {
-            const rubricsDir = join(projectPath, ".specify", "rubrics");
-            const rubric = await getRubric("spec-quality", rubricsDir);
-            const gradeResult = {
-              passed: evalResult.passed,
-              score: evalResult.score,
-              output: evalResult.feedback,
-            };
-            const feedbackReport = generateActionableFeedback(gradeResult, rubric);
-            console.log("\n" + formatFeedbackReport(feedbackReport));
-          } catch {
-            // Fallback to raw feedback if rubric loading fails
-            console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < ${formatThreshold(threshold)})`);
-            console.log("\nFeedback:");
-            console.log(evalResult.feedback);
+        // In headless mode, claude -p can't write files — extract spec from output
+        if (!existsSync(specFile) && isHeadlessMode() && result.output) {
+          const extracted = extractMarkdownArtifact(result.output);
+          if (extracted) {
+            writeFileSync(specFile, extracted);
+            console.log("[headless] Extracted spec from Claude output and wrote to spec.md");
           }
-          console.log("\n─".repeat(60));
-          console.log("\nThe spec has quality issues. Review the feedback above.");
-          console.log("To revise: edit the spec and run 'specflow eval run --file " + specFile + "'");
-          console.log("When passing, run 'specflow plan " + featureId + "' to continue.");
         }
-      } else {
-        console.log("\n─".repeat(60));
-        console.log(`\n⚠ Claude finished but spec.md was not created`);
-        console.log("  Review the output above and try again");
-        updateFeaturePhase(featureId, "none");
-        process.exit(1);
-      }
-    } else {
-      console.error(`\n✗ SPECIFY phase failed: ${result.error}`);
+        if (!existsSync(specFile)) {
+          throw new Error("Claude finished but spec.md was not created");
+        }
+      }, featureId, feature.name, "specify", projectPath);
+    } catch (error) {
+      console.error(`\n✗ SPECIFY phase failed: ${error instanceof Error ? error.message : String(error)}`);
       updateFeaturePhase(featureId, "none");
       process.exit(1);
+    }
+
+    // Phase succeeded — update and run quality eval
+    updateFeaturePhase(featureId, "specify");
+    console.log("\n─".repeat(60));
+    console.log(`\n📝 Spec created: ${specFile}`);
+
+    // Load configurable thresholds
+    const thresholds = loadThresholds(projectPath);
+    // Use quick-start threshold if in quick mode
+    const threshold = options.quick ? thresholds.quickStartQuality : thresholds.specQuality;
+    const thresholdDecimal = toDecimal(threshold);
+
+    // Run quality gate eval
+    console.log("\n🔍 Running spec quality evaluation...\n");
+    if (options.quick) {
+      console.log(`   ⚡ Quick-start threshold: ${formatThreshold(threshold)} (vs ${formatThreshold(thresholds.specQuality)} standard)`);
+    } else if (thresholds.source === "constitution") {
+      console.log(`   Using threshold from constitution: ${formatThreshold(threshold)}`);
+    }
+    const evalResult = await runSpecEval(specFile, projectPath, thresholdDecimal);
+
+    if (evalResult.passed) {
+      console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}% >= ${formatThreshold(threshold)})`);
+      console.log(`\n✓ SPECIFY phase complete for ${featureId}`);
+      console.log("\nNext: Run 'specflow plan " + featureId + "' for technical planning");
+    } else {
+      // Generate actionable feedback for quality gate failure
+      try {
+        const rubricsDir = join(projectPath, ".specify", "rubrics");
+        const rubric = await getRubric("spec-quality", rubricsDir);
+        const gradeResult = {
+          passed: evalResult.passed,
+          score: evalResult.score,
+          output: evalResult.feedback,
+        };
+        const feedbackReport = generateActionableFeedback(gradeResult, rubric);
+        console.log("\n" + formatFeedbackReport(feedbackReport));
+      } catch {
+        // Fallback to raw feedback if rubric loading fails
+        console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < ${formatThreshold(threshold)})`);
+        console.log("\nFeedback:");
+        console.log(evalResult.feedback);
+      }
+      console.log("\n─".repeat(60));
+      console.log("\nThe spec has quality issues. Review the feedback above.");
+      console.log("To revise: edit the spec and run 'specflow eval run --file " + specFile + "'");
+      console.log("When passing, run 'specflow plan " + featureId + "' to continue.");
     }
   } finally {
     closeDatabase();

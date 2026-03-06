@@ -17,6 +17,7 @@ import {
   dbExists,
 } from "../lib/database";
 import type { Feature } from "../types";
+import { wrapPhaseExecution } from "../lib/pipeline-interceptor";
 import {
   getAutoChainConfig,
   getAutoChainDescription,
@@ -113,46 +114,46 @@ export async function tasksCommand(
     console.log("Invoking Claude with SpecFlow tasks workflow...\n");
     console.log("─".repeat(60));
 
-    const result = await runClaude(prompt, projectPath);
+    const tasksFile = join(feature.specPath, "tasks.md");
 
-    if (result.success) {
-      const tasksFile = join(feature.specPath, "tasks.md");
-
-      // In headless mode, claude -p can't write files — extract tasks from output
-      if (!existsSync(tasksFile) && isHeadlessMode() && result.output) {
-        const extracted = extractMarkdownArtifact(result.output);
-        if (extracted) {
-          writeFileSync(tasksFile, extracted);
-          console.log("[headless] Extracted tasks from Claude output and wrote to tasks.md");
+    try {
+      await wrapPhaseExecution(async () => {
+        const result = await runClaude(prompt, projectPath);
+        if (!result.success) {
+          throw new Error(result.error || "Claude execution failed");
         }
-      }
-
-      if (existsSync(tasksFile)) {
-        updateFeaturePhase(featureId, "tasks");
-        console.log("\n─".repeat(60));
-        console.log(`\n✓ TASKS phase complete for ${featureId}`);
-        console.log(`  Tasks created: ${tasksFile}`);
-
-        // Handle auto-chaining (using config declared earlier)
-        const shouldChain = await handleAutoChain(autoChainConfig.mode, featureId);
-
-        if (shouldChain) {
-          console.log("\n🔗 Chaining to implementation...\n");
-          // Note: The actual implementation command would be called here
-          // For now, we just indicate what would happen
-          console.log(`Next: Run 'specflow implement ${featureId}' to start implementation`);
-        } else {
-          console.log("\nTasks ready. Run 'specflow next --feature " + featureId + "' to get the implementation prompt");
+        // In headless mode, claude -p can't write files — extract tasks from output
+        if (!existsSync(tasksFile) && isHeadlessMode() && result.output) {
+          const extracted = extractMarkdownArtifact(result.output);
+          if (extracted) {
+            writeFileSync(tasksFile, extracted);
+            console.log("[headless] Extracted tasks from Claude output and wrote to tasks.md");
+          }
         }
-      } else {
-        console.log("\n⚠ Claude finished but tasks.md was not created");
-        updateFeaturePhase(featureId, "plan");
-        process.exit(1);
-      }
-    } else {
-      console.error(`\n✗ TASKS phase failed: ${result.error}`);
+        if (!existsSync(tasksFile)) {
+          throw new Error("Claude finished but tasks.md was not created");
+        }
+      }, featureId, feature.name, "tasks", projectPath);
+    } catch (error) {
+      console.error(`\n✗ TASKS phase failed: ${error instanceof Error ? error.message : String(error)}`);
       updateFeaturePhase(featureId, "plan");
       process.exit(1);
+    }
+
+    // Phase succeeded — update and handle auto-chaining
+    updateFeaturePhase(featureId, "tasks");
+    console.log("\n─".repeat(60));
+    console.log(`\n✓ TASKS phase complete for ${featureId}`);
+    console.log(`  Tasks created: ${tasksFile}`);
+
+    // Handle auto-chaining (using config declared earlier)
+    const shouldChain = await handleAutoChain(autoChainConfig.mode, featureId);
+
+    if (shouldChain) {
+      console.log("\n🔗 Chaining to implementation...\n");
+      console.log(`Next: Run 'specflow implement ${featureId}' to start implementation`);
+    } else {
+      console.log("\nTasks ready. Run 'specflow next --feature " + featureId + "' to get the implementation prompt");
     }
   } finally {
     closeDatabase();

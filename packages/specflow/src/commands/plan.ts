@@ -20,6 +20,7 @@ import {
   dbExists,
 } from "../lib/database";
 import type { Feature } from "../types";
+import { wrapPhaseExecution } from "../lib/pipeline-interceptor";
 
 export interface PlanCommandOptions {
   dryRun?: boolean;
@@ -104,51 +105,53 @@ export async function planCommand(
     console.log("Invoking Claude with SpecFlow plan workflow...\n");
     console.log("─".repeat(60));
 
-    const result = await runClaude(prompt, projectPath);
+    const planFile = join(feature.specPath, "plan.md");
 
-    if (result.success) {
-      const planFile = join(feature.specPath, "plan.md");
-
-      // In headless mode, claude -p can't write files — extract plan from output
-      if (!existsSync(planFile) && isHeadlessMode() && result.output) {
-        const extracted = extractMarkdownArtifact(result.output);
-        if (extracted) {
-          writeFileSync(planFile, extracted);
-          console.log("[headless] Extracted plan from Claude output and wrote to plan.md");
+    try {
+      await wrapPhaseExecution(async () => {
+        const result = await runClaude(prompt, projectPath);
+        if (!result.success) {
+          throw new Error(result.error || "Claude execution failed");
         }
-      }
-
-      if (existsSync(planFile)) {
-        updateFeaturePhase(featureId, "plan");
-        console.log("\n─".repeat(60));
-        console.log(`\n📐 Plan created: ${planFile}`);
-
-        // Run quality gate eval
-        console.log("\n🔍 Running plan quality evaluation...\n");
-        const evalResult = await runPlanEval(planFile, projectPath);
-
-        if (evalResult.passed) {
-          console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}%)`);
-          console.log(`\n✓ PLAN phase complete for ${featureId}`);
-          console.log("\nNext: Run 'specflow tasks " + featureId + "' to create implementation tasks");
-        } else {
-          console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < 80%)`);
-          console.log("\nFeedback:");
-          console.log(evalResult.feedback);
-          console.log("\n─".repeat(60));
-          console.log("\nThe plan has quality issues. Review the feedback above.");
-          console.log("To revise: edit the plan and run 'specflow eval run --file " + planFile + "'");
-          console.log("When passing, run 'specflow tasks " + featureId + "' to continue.");
+        // In headless mode, claude -p can't write files — extract plan from output
+        if (!existsSync(planFile) && isHeadlessMode() && result.output) {
+          const extracted = extractMarkdownArtifact(result.output);
+          if (extracted) {
+            writeFileSync(planFile, extracted);
+            console.log("[headless] Extracted plan from Claude output and wrote to plan.md");
+          }
         }
-      } else {
-        console.log("\n⚠ Claude finished but plan.md was not created");
-        updateFeaturePhase(featureId, "specify");
-        process.exit(1);
-      }
-    } else {
-      console.error(`\n✗ PLAN phase failed: ${result.error}`);
+        if (!existsSync(planFile)) {
+          throw new Error("Claude finished but plan.md was not created");
+        }
+      }, featureId, feature.name, "plan", projectPath);
+    } catch (error) {
+      console.error(`\n✗ PLAN phase failed: ${error instanceof Error ? error.message : String(error)}`);
       updateFeaturePhase(featureId, "specify");
       process.exit(1);
+    }
+
+    // Phase succeeded — update and run quality eval
+    updateFeaturePhase(featureId, "plan");
+    console.log("\n─".repeat(60));
+    console.log(`\n📐 Plan created: ${planFile}`);
+
+    // Run quality gate eval
+    console.log("\n🔍 Running plan quality evaluation...\n");
+    const evalResult = await runPlanEval(planFile, projectPath);
+
+    if (evalResult.passed) {
+      console.log(`\n✓ Quality gate passed (${(evalResult.score * 100).toFixed(0)}%)`);
+      console.log(`\n✓ PLAN phase complete for ${featureId}`);
+      console.log("\nNext: Run 'specflow tasks " + featureId + "' to create implementation tasks");
+    } else {
+      console.log(`\n⚠ Quality gate failed (${(evalResult.score * 100).toFixed(0)}% < 80%)`);
+      console.log("\nFeedback:");
+      console.log(evalResult.feedback);
+      console.log("\n─".repeat(60));
+      console.log("\nThe plan has quality issues. Review the feedback above.");
+      console.log("To revise: edit the plan and run 'specflow eval run --file " + planFile + "'");
+      console.log("When passing, run 'specflow tasks " + featureId + "' to continue.");
     }
   } finally {
     closeDatabase();
