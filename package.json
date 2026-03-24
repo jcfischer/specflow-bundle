@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@types/node": "^25.5.0",
+    "mysql2": "^3.20.0"
+  }
+}
