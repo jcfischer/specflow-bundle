@@ -194,9 +194,9 @@ async function copyDataToDolt(
 
       console.log(`  Copying ${table.name}: ${rows.length} rows...`);
 
-      // Insert into Dolt using adapter's connection
-      for (const row of rows) {
-        const values = columns.map((col) => {
+      // Convert rows to array format
+      const rowValues = rows.map((row) => {
+        return columns.map((col) => {
           const val = (row as any)[col];
           // Convert timestamp strings to Date objects for MySQL
           if (
@@ -207,16 +207,10 @@ async function copyDataToDolt(
           }
           return val;
         });
+      });
 
-        // Build INSERT query
-        const placeholders = columns.map(() => "?").join(", ");
-        const query = `INSERT INTO ${table.name} (${columns.join(", ")}) VALUES (${placeholders})`;
-
-        // Execute via adapter's internal connection
-        // This is a workaround - ideally we'd have a bulk insert method
-        const conn = (adapter as any).getConnection();
-        await conn.execute(query, values);
-      }
+      // Use adapter's bulk insert method
+      await adapter.bulkInsert(table.name, columns, rowValues);
     }
   } finally {
     sqliteDb.close();
@@ -231,13 +225,8 @@ async function verifyMigration(
   const adapter = await createAdapter(process.cwd());
 
   try {
-    const conn = (adapter as any).getConnection();
-
     for (const [table, expectedCount] of Object.entries(expectedCounts)) {
-      const [rows]: any = await conn.execute(
-        `SELECT COUNT(*) as count FROM ${table}`
-      );
-      const actualCount = rows[0].count;
+      const actualCount = await adapter.getTableRowCount(table);
 
       if (actualCount !== expectedCount) {
         throw new Error(

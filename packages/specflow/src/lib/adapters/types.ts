@@ -374,4 +374,25 @@ export interface DatabaseAdapter {
    * SQLite: no-op (returns empty string)
    */
   diff?(commit?: string): Promise<string>;
+
+  // ============================================
+  // Bulk Operations (for migrations)
+  // ============================================
+
+  /**
+   * Bulk insert rows into a table
+   * Used for efficient data migration
+   * @param table Table name
+   * @param columns Array of column names
+   * @param rows Array of row values (each row is an array matching columns)
+   */
+  bulkInsert(table: string, columns: string[], rows: any[][]): Promise<void>;
+
+  /**
+   * Get row count for a table
+   * Used for migration verification
+   * @param table Table name
+   * @returns Number of rows in the table
+   */
+  getTableRowCount(table: string): Promise<number>;
 }

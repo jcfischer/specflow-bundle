@@ -254,4 +254,32 @@ export class DoltAdapter extends BaseAdapter {
       throw new Error(`Failed to get diff: ${(error as Error).message}`);
     }
   }
+
+  // ============================================
+  // Bulk Operations (for migrations)
+  // ============================================
+
+  async bulkInsert(table: string, columns: string[], rows: any[][]): Promise<void> {
+    const conn = this.getConnection();
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    // Build INSERT query with multiple value sets
+    const placeholders = columns.map(() => "?").join(", ");
+    const valuesSets = rows.map(() => `(${placeholders})`).join(", ");
+    const query = `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${valuesSets}`;
+
+    // Flatten rows array for query parameters
+    const values = rows.flat();
+
+    await conn.execute(query, values);
+  }
+
+  async getTableRowCount(table: string): Promise<number> {
+    const conn = this.getConnection();
+    const [rows]: any = await conn.execute(`SELECT COUNT(*) as count FROM ${table}`);
+    return rows[0].count;
+  }
 }

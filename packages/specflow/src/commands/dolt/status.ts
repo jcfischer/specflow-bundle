@@ -4,27 +4,14 @@
  */
 
 import { Command } from "commander";
-import { loadConfig } from "../../lib/config";
-import { createAdapter } from "../../lib/adapters/factory";
+import { withDoltAdapter } from "./common";
 
 export function createDoltStatusCommand(): Command {
   return new Command("status")
     .description("Show uncommitted changes in Dolt database")
     .action(async () => {
       try {
-        const projectPath = process.cwd();
-        const config = loadConfig(projectPath);
-
-        // Check backend
-        if (config.database.backend !== "dolt") {
-          console.error("✗ Version control is only available with Dolt backend");
-          console.error("  Current backend: SQLite");
-          console.error("  Run 'specflow dolt init' to configure Dolt");
-          process.exit(1);
-        }
-
-        const adapter = await createAdapter(projectPath);
-        try {
+        await withDoltAdapter(async (adapter) => {
           const status = await adapter.status?.();
 
           if (!status) {
@@ -53,9 +40,7 @@ export function createDoltStatusCommand(): Command {
               console.log("  (modified tables)");
             }
           }
-        } finally {
-          await adapter.disconnect();
-        }
+        });
       } catch (error) {
         console.error(`Error: ${(error as Error).message}`);
         process.exit(1);

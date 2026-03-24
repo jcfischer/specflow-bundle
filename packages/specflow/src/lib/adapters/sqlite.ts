@@ -199,4 +199,32 @@ export class SQLiteAdapter extends BaseAdapter {
       runEmbeddedMigrations(db, EMBEDDED_MIGRATIONS);
     }
   }
+
+  // ============================================
+  // Bulk Operations (for migrations)
+  // ============================================
+
+  async bulkInsert(table: string, columns: string[], rows: any[][]): Promise<void> {
+    const db = this.getDb();
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    // Build INSERT query with multiple value sets
+    const placeholders = columns.map(() => "?").join(", ");
+    const valuesSets = rows.map(() => `(${placeholders})`).join(", ");
+    const query = `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${valuesSets}`;
+
+    // Flatten rows array for query parameters
+    const values = rows.flat();
+
+    db.run(query, values);
+  }
+
+  async getTableRowCount(table: string): Promise<number> {
+    const db = this.getDb();
+    const row = db.query<{ count: number }, []>(`SELECT COUNT(*) as count FROM ${table}`).get();
+    return row?.count ?? 0;
+  }
 }
