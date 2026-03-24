@@ -37,6 +37,8 @@ import { approveCommand } from "./commands/approve";
 import { rejectCommand } from "./commands/reject";
 import { inboxCommand } from "./commands/inbox";
 import { auditCommand } from "./commands/audit";
+import { createDoltCommand } from "./commands/dolt";
+import { createMigrateToDoltCommand } from "./commands/migrate-to-dolt";
 
 // =============================================================================
 // Main Program
@@ -276,6 +278,12 @@ program
   .option("--rollback", "Rollback the last applied migration")
   .option("--verify", "Verify migration checksums match")
   .action((options) => migrateCommand({ status: options.status, rollback: options.rollback, verify: options.verify }));
+
+// Add Dolt command group
+program.addCommand(createDoltCommand());
+
+// Add SQLite to Dolt migration command
+program.addCommand(createMigrateToDoltCommand());
 
 // =============================================================================
 // Lifecycle Extension Commands
