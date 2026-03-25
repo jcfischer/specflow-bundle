@@ -22,9 +22,6 @@ depends_on:
   tools:
     - name: bun
       version: ">=1.0.0"
-  packages:
-    - name: specflow-ui
-      reason: "Optional dashboard for progress visualization"
 
 capabilities:
   filesystem:
