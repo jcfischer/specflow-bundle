@@ -22,6 +22,8 @@ describe("Types", () => {
         createdAt: new Date(),
         startedAt: null,
         completedAt: null,
+        migratedFrom: null,
+        quickStart: false,
       };
 
       expect(feature.id).toBe("F-1");
@@ -45,10 +47,12 @@ describe("Types", () => {
           priority: 1,
           status,
           specPath: null,
-        phase: "none" as const,
+          phase: "none" as const,
           createdAt: new Date(),
           startedAt: null,
           completedAt: null,
+          migratedFrom: null,
+          quickStart: false,
         };
         expect(feature.status).toBe(status);
       });

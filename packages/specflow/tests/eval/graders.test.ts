@@ -321,8 +321,8 @@ describe("Grader Interface", () => {
       await grader.grade(testCase, context);
 
       expect(capturedContext).not.toBeNull();
-      expect(capturedContext?.projectPath).toBe("/my/project");
-      expect(capturedContext?.featureId).toBe("F-001");
+      expect(capturedContext!.projectPath).toBe("/my/project");
+      expect(capturedContext!.featureId).toBe("F-001");
     });
   });
 });
