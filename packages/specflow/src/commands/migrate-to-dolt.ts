@@ -27,12 +27,12 @@ export function createMigrateToDoltCommand(): Command {
     .option("--skip-verification", "Skip row count verification")
     .option("--dry-run", "Preview migration without making changes")
     .action(async (options) => {
+      const projectPath = process.cwd();
+      const originalConfig = loadConfig(projectPath);
       try {
-        const projectPath = process.cwd();
-        const config = loadConfig(projectPath);
 
         // Check if already using Dolt
-        if (config.database.backend === "dolt") {
+        if (originalConfig.database.backend === "dolt") {
           console.error("✗ Already using Dolt backend");
           process.exit(1);
         }
@@ -82,8 +82,8 @@ export function createMigrateToDoltCommand(): Command {
         }
         sqliteDb.close();
 
-        // Step 3: Configure Dolt backend
-        console.log("\nStep 3: Configuring Dolt backend...");
+        // Step 3: Verify Dolt connection BEFORE saving config
+        console.log("\nStep 3: Verifying Dolt connection...");
         const doltConfig = {
           database: {
             backend: "dolt" as const,
@@ -99,21 +99,22 @@ export function createMigrateToDoltCommand(): Command {
         };
 
         if (!options.dryRun) {
+          // Connect with temp config to verify reachability before touching disk
+          const tempAdapter = await createAdapter(projectPath, doltConfig);
+          console.log("  ✓ Dolt connection established");
+          console.log("  ✓ Schema initialized");
+          await tempAdapter.disconnect();
+        } else {
+          console.log("  [Would verify Dolt connection]");
+        }
+
+        // Step 4: Save config (only reached if connection succeeded)
+        console.log("\nStep 4: Saving Dolt configuration...");
+        if (!options.dryRun) {
           saveConfig(projectPath, doltConfig);
           console.log("  ✓ Configuration updated");
         } else {
           console.log("  [Would update configuration]");
-        }
-
-        // Step 4: Connect to Dolt and initialize schema
-        console.log("\nStep 4: Initializing Dolt database...");
-        if (!options.dryRun) {
-          const adapter = await createAdapter(projectPath);
-          console.log("  ✓ Dolt connection established");
-          console.log("  ✓ Schema initialized");
-          await adapter.disconnect();
-        } else {
-          console.log("  [Would initialize Dolt database]");
         }
 
         // Step 5: Copy data
@@ -156,7 +157,18 @@ export function createMigrateToDoltCommand(): Command {
         console.log(`  3. Backup file preserved at: ${backupPath}`);
       } catch (error) {
         console.error(`\n✗ Migration failed: ${(error as Error).message}`);
-        console.error("\nRollback: Restore SQLite backend in .specflow/config.json");
+        // Auto-restore original config if it was overwritten
+        try {
+          const currentConfig = loadConfig(projectPath);
+          if (currentConfig.database.backend === "dolt") {
+            saveConfig(projectPath, originalConfig);
+            console.error("  ✓ Configuration restored to SQLite backend");
+          }
+        } catch {
+          console.error(
+            "  ✗ Could not auto-restore config — manually restore .specflow/config.json"
+          );
+        }
         process.exit(1);
       }
     });

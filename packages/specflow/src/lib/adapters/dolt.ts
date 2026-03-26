@@ -185,6 +185,8 @@ export class DoltAdapter extends BaseAdapter {
       throw new Error("Remote URL is required for init");
     }
 
+    // init() must be run from the Dolt repository directory via the CLI.
+    // All other VC operations use Dolt SQL stored procedures instead.
     try {
       await exec(`dolt init`);
       await exec(`dolt remote add origin ${doltConfig.remote}`);
@@ -194,17 +196,23 @@ export class DoltAdapter extends BaseAdapter {
   }
 
   async status(): Promise<VCStatus> {
+    // Use Dolt SQL system table instead of `dolt status --json` (no --json flag exists)
+    const conn = this.getConnection();
     try {
-      const { stdout } = await exec(`dolt status --json`);
-      const status = JSON.parse(stdout);
+      const [rows] = await conn.execute<any[]>(`SELECT * FROM dolt_status`);
+      const [branchRows] = await conn.execute<any[]>(
+        `SELECT active_branch() as branch`
+      );
+
+      const uncommittedChanges = rows.map((r: any) => r.table_name as string);
 
       return {
-        clean: status.is_clean ?? true,
-        uncommittedChanges: status.tables_changed || [],
-        branch: status.current_branch,
-        remote: status.remote,
-        ahead: status.ahead ?? 0,
-        behind: status.behind ?? 0,
+        clean: rows.length === 0,
+        uncommittedChanges,
+        branch: branchRows[0]?.branch ?? "main",
+        remote: this.config?.dolt?.remote,
+        ahead: 0,
+        behind: 0,
       };
     } catch (error) {
       throw new Error(`Failed to get Dolt status: ${(error as Error).message}`);
@@ -212,44 +220,61 @@ export class DoltAdapter extends BaseAdapter {
   }
 
   async commit(message: string): Promise<void> {
+    // Use Dolt SQL stored procedures — avoids shell injection and cwd issues
+    const conn = this.getConnection();
     try {
-      await exec(`dolt add .`);
-      await exec(`dolt commit -m "${message.replace(/"/g, '\\"')}"`);
+      await conn.execute(`CALL dolt_add('.')`);
+      await conn.execute(`CALL dolt_commit(?)`, [message]);
     } catch (error) {
       throw new Error(`Failed to commit: ${(error as Error).message}`);
     }
   }
 
   async push(remote: string = "origin"): Promise<void> {
+    const conn = this.getConnection();
     try {
-      await exec(`dolt push ${remote}`);
+      await conn.execute(`CALL dolt_push(?)`, [remote]);
     } catch (error) {
       throw new Error(`Failed to push: ${(error as Error).message}`);
     }
   }
 
   async pull(remote: string = "origin"): Promise<void> {
+    const conn = this.getConnection();
     try {
-      await exec(`dolt pull ${remote}`);
+      await conn.execute(`CALL dolt_pull(?)`, [remote]);
     } catch (error) {
       throw new Error(`Failed to pull: ${(error as Error).message}`);
     }
   }
 
   async log(limit: number = 10): Promise<string[]> {
+    const conn = this.getConnection();
     try {
-      const { stdout } = await exec(`dolt log --oneline -n ${limit}`);
-      return stdout.trim().split("\n").filter((line) => line.length > 0);
+      const [rows] = await conn.execute<any[]>(
+        `SELECT commit_hash, message FROM dolt_log LIMIT ?`,
+        [limit]
+      );
+      return rows.map((r: any) => `${r.commit_hash} ${r.message}`);
     } catch (error) {
       throw new Error(`Failed to get log: ${(error as Error).message}`);
     }
   }
 
   async diff(commit?: string): Promise<string> {
+    const conn = this.getConnection();
     try {
-      const cmd = commit ? `dolt diff ${commit}` : `dolt diff`;
-      const { stdout } = await exec(cmd);
-      return stdout;
+      const fromRef = commit ?? "HEAD";
+      const [rows] = await conn.execute<any[]>(
+        `SELECT * FROM dolt_diff_stat(?, 'WORKING')`,
+        [fromRef]
+      );
+      return rows
+        .map(
+          (r: any) =>
+            `${r.table_name}: +${r.rows_added} -${r.rows_deleted} ~${r.rows_modified}`
+        )
+        .join("\n");
     } catch (error) {
       throw new Error(`Failed to get diff: ${(error as Error).message}`);
     }
@@ -280,6 +305,7 @@ export class DoltAdapter extends BaseAdapter {
   async getTableRowCount(table: string): Promise<number> {
     const conn = this.getConnection();
     const [rows]: any = await conn.execute(`SELECT COUNT(*) as count FROM ${table}`);
-    return rows[0].count;
+    // mysql2 returns COUNT(*) as BigInt; Number() converts it for safe equality checks
+    return Number(rows[0].count);
   }
 }

@@ -9,10 +9,14 @@ import { loadConfig } from "../config";
 /**
  * Create database adapter based on configuration
  * @param projectPath - Path to SpecFlow project root
+ * @param configOverride - Optional config to use instead of loading from disk (e.g. for pre-save connection testing)
  * @returns Initialized DatabaseAdapter
  */
-export async function createAdapter(projectPath: string): Promise<DatabaseAdapter> {
-  const config = loadConfig(projectPath);
+export async function createAdapter(
+  projectPath: string,
+  configOverride?: ReturnType<typeof loadConfig>
+): Promise<DatabaseAdapter> {
+  const config = configOverride ?? loadConfig(projectPath);
 
   switch (config.database.backend) {
     case "dolt": {
