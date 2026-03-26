@@ -29,7 +29,7 @@ describe("withDoltAdapter", () => {
 
   it("calls fn with adapter and returns result", async () => {
     const result = await withDoltAdapter(async (adapter) => {
-      expect(adapter).toBe(mockAdapter);
+      expect(adapter).toBe(mockAdapter as any);
       return "ok";
     });
     expect(result).toBe("ok");

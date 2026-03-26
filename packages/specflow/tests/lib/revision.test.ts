@@ -364,7 +364,7 @@ describe("Revision Module", () => {
 
       const history = getAllRevisionHistory();
       expect(history).toHaveLength(1);
-      expect(history[0].id).toBe(entry?.id);
+      expect(history[0].id).toBe(entry!.id);
     });
   });
 

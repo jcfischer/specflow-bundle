@@ -83,6 +83,8 @@ describe("Context Builder", () => {
         createdAt: new Date(),
         startedAt: null,
         completedAt: null,
+        migratedFrom: null,
+        quickStart: false,
       };
 
       const context = buildFeatureContext(appContext, feature);
@@ -118,6 +120,8 @@ describe("Context Builder", () => {
         createdAt: new Date(),
         startedAt: null,
         completedAt: null,
+        migratedFrom: null,
+        quickStart: false,
       };
 
       const context = buildFeatureContext(appContext, feature);
@@ -147,6 +151,8 @@ describe("Context Builder", () => {
         specPath: null,
         phase: "none" as const,
         createdAt: new Date(),
+        migratedFrom: null,
+        quickStart: false,
         startedAt: null,
         completedAt: null,
       };
@@ -187,6 +193,8 @@ describe("Context Builder", () => {
           createdAt: new Date(),
           startedAt: null,
           completedAt: null,
+          migratedFrom: null,
+          quickStart: false,
         },
         specContent: null,
         planContent: null,

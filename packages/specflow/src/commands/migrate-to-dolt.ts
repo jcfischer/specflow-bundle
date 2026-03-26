@@ -221,8 +221,8 @@ async function copyDataToDolt(
         });
       });
 
-      // Use adapter's bulk insert method
-      await adapter.bulkInsert(table.name, columns, rowValues);
+      // Use adapter's bulk insert method (only available on DoltAdapter)
+      await adapter.bulkInsert!(table.name, columns, rowValues);
     }
   } finally {
     sqliteDb.close();
@@ -238,7 +238,7 @@ async function verifyMigration(
 
   try {
     for (const [table, expectedCount] of Object.entries(expectedCounts)) {
-      const actualCount = await adapter.getTableRowCount(table);
+      const actualCount = await adapter.getTableRowCount!(table);
 
       if (actualCount !== expectedCount) {
         throw new Error(

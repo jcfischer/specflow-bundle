@@ -386,7 +386,7 @@ export interface DatabaseAdapter {
    * @param columns Array of column names
    * @param rows Array of row values (each row is an array matching columns)
    */
-  bulkInsert(table: string, columns: string[], rows: any[][]): Promise<void>;
+  bulkInsert?(table: string, columns: string[], rows: any[][]): Promise<void>;
 
   /**
    * Get row count for a table
@@ -394,5 +394,5 @@ export interface DatabaseAdapter {
    * @param table Table name
    * @returns Number of rows in the table
    */
-  getTableRowCount(table: string): Promise<number>;
+  getTableRowCount?(table: string): Promise<number>;
 }
