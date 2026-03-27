@@ -83,9 +83,9 @@ export function validateConfig(config: Partial<SpecFlowConfig>): SpecFlowConfig 
 
   const backend = config.database.backend || defaults.database.backend;
 
-  if (backend !== "sqlite" && backend !== "dolt") {
+  if (backend !== "sqlite" && backend !== "dolt" && backend !== "dolt-cli") {
     throw new Error(
-      `Invalid database backend: ${backend}. Must be "sqlite" or "dolt".`
+      `Invalid database backend: ${backend}. Must be "sqlite", "dolt", or "dolt-cli".`
     );
   }
 
@@ -120,6 +120,18 @@ export function validateConfig(config: Partial<SpecFlowConfig>): SpecFlowConfig 
           password: config.database.dolt.password || "",
           database: config.database.dolt.database,
           remote: config.database.dolt.remote,
+        },
+      },
+    };
+  }
+
+  if (backend === "dolt-cli") {
+    return {
+      database: {
+        backend: "dolt-cli",
+        doltCli: {
+          path: (config.database as any).doltCli?.path || ".specflow/dolt",
+          remote: (config.database as any).doltCli?.remote,
         },
       },
     };

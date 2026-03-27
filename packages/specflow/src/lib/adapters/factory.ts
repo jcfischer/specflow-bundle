@@ -26,6 +26,13 @@ export async function createAdapter(
       return adapter;
     }
 
+    case "dolt-cli": {
+      const { DoltCliAdapter } = await import("./dolt-cli");
+      const adapter = new DoltCliAdapter();
+      await adapter.connect(config.database);
+      return adapter;
+    }
+
     case "sqlite":
     default: {
       const { SQLiteAdapter } = await import("./sqlite");
