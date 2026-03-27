@@ -224,7 +224,7 @@ export class DoltAdapter extends BaseAdapter {
     const conn = this.getConnection();
     try {
       await conn.execute(`CALL dolt_add('.')`);
-      await conn.execute(`CALL dolt_commit(?)`, [message]);
+      await conn.execute(`CALL dolt_commit('-m', ?)`, [message]);
     } catch (error) {
       throw new Error(`Failed to commit: ${(error as Error).message}`);
     }

@@ -22,9 +22,9 @@ export async function withDoltAdapter<T>(
   const config = loadConfig(projectPath);
 
   // Check backend
-  if (config.database.backend !== "dolt") {
+  if (config.database.backend !== "dolt" && config.database.backend !== "dolt-cli") {
     console.error("✗ Version control is only available with Dolt backend");
-    console.error("  Current backend: SQLite");
+    console.error(`  Current backend: ${config.database.backend}`);
     process.exit(1);
   }
 

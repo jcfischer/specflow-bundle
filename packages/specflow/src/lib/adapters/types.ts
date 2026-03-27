@@ -30,9 +30,10 @@ import type {
  * Database configuration
  */
 export interface DbConfig {
-  backend: "sqlite" | "dolt";
+  backend: "sqlite" | "dolt" | "dolt-cli";
   sqlite?: SqliteConfig;
   dolt?: DoltConfig;
+  doltCli?: DoltCliConfig;
 }
 
 /**
@@ -57,6 +58,16 @@ export interface DoltConfig {
   password?: string;
   /** Database name */
   database: string;
+  /** DoltHub remote URL (e.g., "dolthub-org/project") */
+  remote?: string;
+}
+
+/**
+ * Dolt CLI-mode configuration (serverless, no running server)
+ */
+export interface DoltCliConfig {
+  /** Path to the Dolt data directory (default: .specflow/dolt) */
+  path: string;
   /** DoltHub remote URL (e.g., "dolthub-org/project") */
   remote?: string;
 }
