@@ -681,6 +681,51 @@ export abstract class BaseAdapter implements DatabaseAdapter {
   }
 
   // ============================================
+  // Bulk Operations (for migrations)
+  // ============================================
+
+  /**
+   * Get placeholder format for this adapter's dialect
+   * SQLite uses '?', MySQL/Dolt also use '?'
+   */
+  protected getPlaceholder(): string {
+    return "?";
+  }
+
+  /**
+   * Bulk insert rows into a table
+   * Shared implementation across all adapters
+   */
+  async bulkInsert(table: string, columns: string[], rows: any[][]): Promise<void> {
+    if (rows.length === 0) {
+      return;
+    }
+
+    // Build INSERT query with multiple value sets
+    const placeholder = this.getPlaceholder();
+    const placeholders = columns.map(() => placeholder).join(", ");
+    const valuesSets = rows.map(() => `(${placeholders})`).join(", ");
+    const query = `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${valuesSets}`;
+
+    // Flatten rows array for query parameters
+    const values = rows.flat();
+
+    await this.execute(query, values);
+  }
+
+  /**
+   * Get the row count for a table
+   * Shared implementation across all adapters
+   */
+  async getTableRowCount(table: string): Promise<number> {
+    const row = await this.queryOne<{ count: number | bigint }>(
+      `SELECT COUNT(*) as count FROM ${table}`
+    );
+    // mysql2 returns COUNT(*) as BigInt; Number() converts it for safe equality checks
+    return row ? Number(row.count) : 0;
+  }
+
+  // ============================================
   // Internal Helpers
   // ============================================
 
