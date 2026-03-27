@@ -50,7 +50,7 @@ SPECIFY → PLAN → TASKS → IMPLEMENT → HARDEN → REVIEW → APPROVE
 ### The Result
 
 - **No hallucinated features** — everything traces back to approved specs
-- **No forgotten context** — SQLite database tracks all features and progress
+- **No forgotten context** — SQLite or Dolt database tracks all features and progress
 - **No mysterious breakage** — dependency tracking catches cascading failures
 - **Resumable anytime** — interrupt and pick up exactly where you left off
 
@@ -234,6 +234,26 @@ After completing all steps, verify:
 
 ## Usage After Installation
 
+### Database Backends
+
+SpecFlow supports three storage backends:
+
+| Backend | Use When | Requirements |
+|---------|----------|--------------|
+| `sqlite` (default) | Local solo development | None — zero config |
+| `dolt-cli` | Git-like version control, no server | `dolt` CLI installed |
+| `dolt` (server) | Team collaboration, DoltHub sync | Running Dolt server |
+
+**Dolt CLI mode** is the recommended Dolt option — serverless, stores data inside the project directory alongside your specs, and commits travel with the repo.
+
+```bash
+# Switch to Dolt CLI mode (one-time setup)
+specflow dolt init --cli                      # data in .specflow/dolt/
+specflow dolt init --cli --remote org/repo    # with DoltHub remote
+```
+
+---
+
 ### SpecFlow CLI (Unified Commands)
 
 ```bash
@@ -263,6 +283,15 @@ specflow approve F-1 F-2      # Approve pending gates (batch)
 specflow reject F-1 --reason "..." # Reject with feedback
 specflow inbox                # Priority-ranked review queue
 specflow audit                # Detect spec-reality drift
+
+# Dolt version control (when using dolt or dolt-cli backend)
+specflow dolt init --cli     # Switch to serverless Dolt CLI mode
+specflow dolt status         # Show uncommitted changes and branch
+specflow dolt commit "msg"   # Commit current state
+specflow dolt push           # Push to remote (DoltHub)
+specflow dolt pull           # Pull from remote
+specflow dolt log            # Show commit history
+specflow dolt diff           # Show row-level diff vs HEAD
 
 # Quality & management
 specflow eval run            # Run quality evaluations
@@ -365,6 +394,13 @@ SpecFlow's `contrib-prep` command bridges private development with the [pai-coll
 |         (Unified CLI + Spec-Driven Workflow)                 |
 |   specflow specify -> plan -> tasks -> implement              |
 |   (opt-in) -> harden -> review -> approve                    |
++----------------------------+---------------------------------+
+                             | reads/writes
+                             v
++-------------------------------------------------------------+
+|              Database Adapter (pluggable)                    |
+|   sqlite (default) | dolt-cli (serverless) | dolt (server)  |
+|   specflow dolt init --cli  →  .specflow/dolt/               |
 +----------------------------+---------------------------------+
                              | validates against
                              v
