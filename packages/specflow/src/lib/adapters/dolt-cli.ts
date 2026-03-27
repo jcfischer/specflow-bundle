@@ -174,7 +174,10 @@ export class DoltCliAdapter extends BaseAdapter {
   }
 
   async log(limit: number = 10): Promise<string[]> {
-    const output = await this.runSql(`SELECT commit_hash, message FROM dolt_log LIMIT ${limit}`);
+    if (!isFinite(limit) || limit < 0) {
+      throw new Error(`Invalid limit parameter: ${limit}`);
+    }
+    const output = await this.runSql(`SELECT commit_hash, message FROM dolt_log LIMIT ${Math.floor(limit)}`);
     const rows = parseJsonResult(output);
     return rows.map((r: any) => `${r.commit_hash} ${r.message}`);
   }
@@ -182,7 +185,8 @@ export class DoltCliAdapter extends BaseAdapter {
   async diff(commit?: string): Promise<string> {
     const fromRef = commit ?? "HEAD";
     try {
-      const output = await this.runSql(`SELECT * FROM dolt_diff_stat('${fromRef}', 'WORKING')`);
+      const query = interpolateQuery("SELECT * FROM dolt_diff_stat(?, 'WORKING')", [fromRef]);
+      const output = await this.runSql(query);
       const rows = parseJsonResult(output);
       return rows
         .map((r: any) => `${r.table_name}: +${r.rows_added} -${r.rows_deleted} ~${r.rows_modified}`)

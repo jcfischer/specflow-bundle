@@ -35,9 +35,18 @@ export function escapeSqlValue(value: any): string {
     return `'${value.toISOString()}'`;
   }
 
-  // String: escape single quotes per SQL standard
-  // SQL injection prevention: '' is the standard SQL escape for single quotes
-  const escaped = String(value).replace(/'/g, "''");
+  // String: escape backslashes, single quotes, and control characters
+  // SQL injection prevention:
+  // - Backslash must be escaped first to prevent double-escaping
+  // - '' is the standard SQL escape for single quotes
+  // - Control characters (newlines, null bytes, etc.) are removed for safety
+  const escaped = String(value)
+    .replace(/\\/g, "\\\\")           // Escape backslashes
+    .replace(/'/g, "''")              // Escape single quotes (SQL standard)
+    .replace(/\n/g, "\\n")            // Escape newlines
+    .replace(/\r/g, "\\r")            // Escape carriage returns
+    .replace(/\t/g, "\\t")            // Escape tabs
+    .replace(/\0/g, "");              // Remove null bytes
   return `'${escaped}'`;
 }
 
