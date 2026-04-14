@@ -483,13 +483,37 @@ export const modelGrader: Grader = {
     // Build grading prompt
     const prompt = buildGradingPrompt(rubric, content);
 
-    // Try Anthropic SDK first, fall back to claude CLI (CLAUDE_CODE_OAUTH_TOKEN)
+    // Prefer claude CLI (Max subscription) over Anthropic SDK (pay-per-token)
+    // to save API costs. Fall back to SDK only if CLI is unavailable.
     const apiKey = loadApiKeyFromEnv();
     let responseText: string | undefined;
     let lastError: string | undefined;
 
-    // Attempt 1: Anthropic SDK with API key
-    if (apiKey) {
+    // Attempt 1: claude CLI (uses Max subscription via CLAUDE_CODE_OAUTH_TOKEN)
+    // --bare skips all hooks, plugins, auto-memory, etc. so evals are hermetic
+    // and don't trigger SessionEnd hooks that may cancel the run.
+    // Unset ANTHROPIC_API_KEY so CLI uses the OAuth token (Max subscription)
+    // instead of the pay-per-token API key.
+    try {
+      const cliEnv = { ...process.env };
+      delete cliEnv.CLAUDECODE;
+      delete cliEnv.ANTHROPIC_API_KEY;
+      const result = spawnSync("claude", ["--print", "--bare", "--no-session-persistence", "--model", "haiku", prompt], {
+        encoding: "utf-8",
+        timeout: 120_000,
+        env: cliEnv,
+      });
+      if (result.status === 0 && result.stdout) {
+        responseText = result.stdout.trim();
+      } else {
+        lastError = result.stderr?.trim() || `claude CLI exited with status ${result.status}`;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+
+    // Attempt 2: Anthropic SDK with API key (fallback — incurs per-token costs)
+    if (!responseText && apiKey) {
       try {
         const anthropic = new Anthropic({ apiKey });
         const response = await anthropic.messages.create({
@@ -501,24 +525,6 @@ export const modelGrader: Grader = {
           .filter((block): block is Anthropic.TextBlock => block.type === "text")
           .map((block) => block.text)
           .join("\n");
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
-      }
-    }
-
-    // Attempt 2: claude CLI (uses CLAUDE_CODE_OAUTH_TOKEN for Max subscription auth)
-    if (!responseText) {
-      try {
-        const result = spawnSync("claude", ["--print", "--no-session-persistence", "--model", "haiku", prompt], {
-          encoding: "utf-8",
-          timeout: 120_000,
-          env: { ...process.env, CLAUDECODE: undefined },
-        });
-        if (result.status === 0 && result.stdout) {
-          responseText = result.stdout.trim();
-        } else {
-          lastError = result.stderr?.trim() || `claude CLI exited with status ${result.status}`;
-        }
       } catch (error) {
         lastError = error instanceof Error ? error.message : String(error);
       }
