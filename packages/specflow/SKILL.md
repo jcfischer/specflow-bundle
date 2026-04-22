@@ -1,338 +1,78 @@
 ---
-name: SpecFlow
+name: specflow
 description: |
-  Orchestrates spec-driven development using the `specflow` CLI (installed at ~/bin/specflow).
-  Enforces SPECIFY → PLAN → TASKS → IMPLEMENT gated workflow with quality evals.
-  Opt-in extended lifecycle: HARDEN → REVIEW → APPROVE for post-implementation quality gates.
-  USE WHEN project has `.specify/` or `.specflow/` directory, user mentions F-1/F-2
-  pattern, or user says "spec", "specify", "specflow", "new feature".
+  Payload loaded by the Development router. Orchestrates gated spec-driven
+  feature development via the `specflow` CLI (~/bin/specflow): SPECIFY →
+  PLAN → TASKS → IMPLEMENT, with opt-in HARDEN → REVIEW → APPROVE.
 ---
 
-# SpecFlow - Spec-Driven Development
+# SpecFlow — Spec-Driven Development
 
-Multi-agent orchestration for spec-driven development using the **`specflow` CLI**.
+Multi-agent orchestration via the `specflow` CLI. Based on [GitHub spec-kit](https://github.com/github/spec-kit).
 
-Based on [GitHub's spec-kit](https://github.com/github/spec-kit).
+## Rules (load first)
 
----
+1. If `.specify/` or `.specflow/` exists AND the user asks for code, run `specflow status` FIRST to orient.
+2. Do NOT write implementation code until `spec.md` + `plan.md` + `tasks.md` exist AND quality gates pass.
+3. Work on a feature branch `spec/F-N-<name>` — never commit feature code to `main`.
+4. This skill is complete when `specflow status` shows the feature in DONE state.
+5. Do NOT silently skip phases. If the user is time-constrained, invoke the trade-off dialog in `docs/TIME-PRESSURE.md`.
 
-## CLI Tool
-
-SpecFlow uses a compiled CLI at `~/bin/specflow`. **All commands in this document are bash commands:**
-
-```bash
-# These are BASH commands executed via the Bash tool
-specflow status          # View feature queue
-specflow specify F-1     # Create specification
-specflow plan F-1        # Create technical plan
-specflow tasks F-1       # Create task breakdown
-specflow complete F-1    # Mark feature complete
-```
-
-Run `specflow --help` for full command list.
-
----
-
-## Workflow Routing
-
-| Trigger | Action | File |
-|---------|--------|------|
-| "specify", "new feature", "create spec" | Run SPECIFY phase | `workflows/specify-with-interview.md` |
-| "plan", "architecture", "technical design" | Run PLAN phase | `workflows/sdd-workflow.md` |
-| "tasks", "break down", "implementation units" | Run TASKS phase | `workflows/sdd-workflow.md` |
-| "complete", "finish feature", "mark done" | Run COMPLETE | `workflows/sdd-workflow.md` |
-| "harden", "acceptance test" | Run HARDEN phase | See below |
-| "review", "evidence package" | Run REVIEW phase | See below |
-| "approve", "reject", "gate" | Run APPROVE/REJECT | See below |
-| "inbox", "review queue" | Show inbox | See below |
-| "audit", "drift", "health check" | Run audit | See below |
-| Anti-pattern detected | Reference docs | `docs/ANTI-PATTERNS.md` |
-| Quality gate questions | Reference docs | `docs/QUALITY-GATES.md` |
-| pai-deps integration | Reference docs | `docs/PAI-DEPS-INTEGRATION.md` |
-
----
-
-## Critical: No Code Without Specs
+## Gated Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  YOU MAY NOT WRITE IMPLEMENTATION CODE UNTIL:                   │
-│                                                                 │
-│  1. spec.md exists for the feature                              │
-│  2. plan.md exists for the feature                              │
-│  3. tasks.md exists for the feature                             │
-│  4. Quality gates have passed (≥80%)                            │
-│                                                                 │
-│  If SpecFlow is loaded, you MUST follow the workflow.           │
-│  If you can't follow the workflow, ASK the user first.          │
-└─────────────────────────────────────────────────────────────────┘
+SPECIFY → PLAN → TASKS → IMPLEMENT ──┬──→ COMPLETE                    (classic)
+                                      └──→ HARDEN → REVIEW → APPROVE   (extended, opt-in)
 ```
 
-### Pre-Implementation Gate Check
+Do NOT advance until the current phase is validated.
 
-Before writing ANY implementation code, verify:
+## Phase Routing
 
-- [ ] `specflow status` shows feature in IMPLEMENT phase
-- [ ] `.specify/specs/F-N-<name>/spec.md` exists
-- [ ] `.specify/specs/F-N-<name>/plan.md` exists
-- [ ] `.specify/specs/F-N-<name>/tasks.md` exists
-- [ ] Quality evals passed (`specflow eval run`)
-- [ ] **On feature branch**: `git checkout -b spec/F-N-<name>`
+| User says / state                               | Run                           | Reference                                    |
+|-------------------------------------------------|-------------------------------|----------------------------------------------|
+| `specflow specify F-N`, path gate + "new feature" | `specflow specify F-N`      | `workflows/specify-with-interview.md`        |
+| `specflow plan F-N`                             | `specflow plan F-N`           | `workflows/sdd-workflow.md` (plan section)   |
+| `specflow tasks F-N`                            | `specflow tasks F-N`          | `workflows/sdd-workflow.md` (tasks section)  |
+| per-task TDD loop (PLAN/RED/GREEN/BLUE/VERIFY/COMMIT) | in-conversation         | `workflows/sdd-workflow.md` (ISC LOOP)       |
+| `specflow complete F-N`                         | `specflow complete F-N`       | validates artifacts + Doctorow Gate          |
+| `specflow harden F-N`                           | `specflow harden F-N`         | `workflows/extended-lifecycle.md`            |
+| `specflow review F-N`                           | `specflow review F-N`         | `workflows/extended-lifecycle.md`            |
+| `specflow approve/reject F-N`                   | `specflow approve/reject F-N` | `workflows/extended-lifecycle.md`            |
+| `specflow inbox` / `specflow audit`             | same                          | `workflows/extended-lifecycle.md`            |
 
-**If ANY box is unchecked, STOP and complete the missing phase.**
+## When to Use / Skip
 
----
+**Use for:** new feature, multi-file capability, integration work.
+**Skip for:** bug fix, single-file tweak, config change, doc update.
 
-## Gated Workflow
+## Quality Gates
 
-```
-SPECIFY → PLAN → TASKS → IMPLEMENT ──┬──→ COMPLETE (classic)
-   |        |       |        |         └──→ HARDEN → REVIEW → APPROVE (extended)
- What/Why  How   Work Items Code
-   ▼        ▼       ▼        ▼
-spec.md  plan.md tasks.md   src/
-```
-
-**Gated phases**: Do NOT advance until current phase is validated.
-**Two paths after IMPLEMENT**: Classic (`specflow complete`) or Extended lifecycle (opt-in).
-
-### Phase 1: Specify (`specflow specify F-N`)
-
-Creates spec.md through 8-phase structured interview:
-1. Problem & Pain
-2. Users & Context
-3. Technical Context
-4. Constraints & Tradeoffs
-5. User Experience
-6. Edge Cases
-7. Success Criteria
-8. Scope & Future
-
-**Quick-Start Mode** (`--quick`): Reduced interview, 60% threshold.
-**Batch Mode** (`--batch`): Non-interactive from decomposition data.
-
-**Quality Gate**: ≥80% on spec-quality rubric (≥60% for quick-start).
-
-See `workflows/specify-with-interview.md` for full interview protocol.
-
-### Phase 2: Plan (`specflow plan F-N`)
-
-Creates plan.md with:
-- Architecture decisions with rationale
-- Data models and schemas
-- API contracts
-- Failure Mode Analysis
-- Constitutional compliance checklist
-
-**Quality Gate**: ≥80% AND pass Constitutional Compliance.
-
-### Phase 3: Tasks (`specflow tasks F-N`)
-
-Creates tasks.md with:
-- Task IDs (T-1.1, T-1.2, etc.)
-- Dependencies marked (`depends: T-X.Y`)
-- Test requirements marked `[T]`
-
-**Auto-chains to Phase 4** after tasks.md is generated.
-
-### Phase 4: Implement
-
-**MANDATORY: Feature Branch Workflow**
-```bash
-git checkout -b spec/F-N-<feature-name>  # All work on feature branch
-```
-
-For **each task**, use the **PAI ISC Loop**:
-
-1. **PLAN**: Define task-level ISC criteria (8 words, testable state)
-2. **RED**: Write failing test first
-3. **GREEN**: Minimal implementation to pass
-4. **BLUE**: Refactor while keeping tests green
-5. **VERIFY**: Check ISC criteria with evidence
-6. **COMMIT**: `git commit -m "spec(F-N): implement T-X.Y"`
-
-See `workflows/sdd-workflow.md` for full ISC loop template.
-
-### Completion (`specflow complete F-N`)
-
-Validates:
-- All required files exist (spec.md, plan.md, tasks.md, docs.md, verify.md)
-- Test coverage ratio ≥0.3
-- verify.md has real output (no placeholders)
-- Doctorow Gate passed
-
-### Extended Lifecycle (Opt-in)
-
-After IMPLEMENT, features can enter the extended lifecycle for additional quality gates:
-
-#### Phase 5: Harden (`specflow harden F-N`)
-
-Generates acceptance test templates from spec.md success criteria:
-- AI-generated or static fallback template with `[x] PASS / [x] FAIL / [x] SKIP` checkboxes
-- Human fills the template with actual test results
-- Ingest with `specflow harden F-N --ingest`
-- Phase advances to REVIEW when all tests pass (no failures)
-
-#### Phase 6: Review (`specflow review F-N`)
-
-Compiles evidence package for human review:
-- Automated checks: `bun test` results, `tsc --noEmit` type checking
-- File alignment: verifies backtick-referenced files exist
-- Acceptance test results summary
-- Creates approval gate and writes `review-package.md`
-
-#### Phase 7: Approve/Reject
-
-- `specflow approve F-N [F-N2 ...]` — batch approve pending gates, marks features complete
-- `specflow reject F-N --reason "..."` — writes feedback.md, returns feature to implement phase
-
-#### Inbox (`specflow inbox`)
-
-Priority-ranked review queue:
-- **P0**: Features with failures or blocked status
-- **P1**: Passed review, waiting <24h
-- **P2**: Passed review, waiting ≥24h
-- Suggests batch approve command for clean items
-
-#### Audit (`specflow audit [F-N]`)
-
-Detects spec-reality drift:
-- DB status consistency (phase vs status alignment)
-- Artifact completeness (expected files for current phase)
-- Spec-code alignment (backtick file references exist)
-
----
-
-## Quick Start
-
-```bash
-# New project
-specflow init "Project description"
-specflow status
-
-# Add and spec a feature
-specflow add "feature-name" "Description"
-specflow specify F-1
-specflow plan F-1
-specflow tasks F-1
-
-# Create feature branch and implement
-git checkout -b spec/F-1-feature-name
-# ... implement with TDD + ISC loop ...
-
-# Complete and merge
-specflow complete F-1
-git checkout main && git merge spec/F-1-feature-name
-```
-
----
-
-## CLI Command Quick Reference
-
-| Command | Purpose |
-|---------|---------|
-| `specflow status` | Show feature queue and progress |
-| `specflow add` | Add new feature |
-| `specflow specify F-N` | Create spec.md |
-| `specflow plan F-N` | Create plan.md |
-| `specflow tasks F-N` | Create tasks.md |
-| `specflow complete F-N` | Mark feature complete |
-| `specflow eval run` | Run quality evaluations |
-| `specflow revise F-N` | Revise artifact based on feedback |
-| `specflow harden F-N` | Generate acceptance test template |
-| `specflow harden F-N --ingest` | Ingest filled acceptance results |
-| `specflow review F-N` | Compile evidence package |
-| `specflow approve F-N` | Approve pending gate(s) |
-| `specflow reject F-N` | Reject with feedback |
-| `specflow inbox` | Priority-ranked review queue |
-| `specflow audit` | Detect spec-reality drift |
-
-See `docs/CLI-REFERENCE.md` for full command reference.
-
----
-
-## Directory Structure
-
-```
-project-root/
-├── .specflow/
-│   └── features.db           # Feature queue (SQLite)
-├── .specify/
-│   ├── memory/constitution.md
-│   ├── debt-ledger.md
-│   └── specs/F-N-<name>/
-│       ├── spec.md
-│       ├── plan.md
-│       ├── tasks.md
-│       ├── docs.md
-│       ├── verify.md
-│       ├── acceptance-test.md   # (extended lifecycle)
-│       ├── review-package.md    # (extended lifecycle)
-│       └── feedback.md          # (on rejection)
-└── src/
-```
-
----
+| Gate                | Threshold                           | Source                              |
+|---------------------|-------------------------------------|-------------------------------------|
+| spec.md quality     | ≥80% (`--quick`: ≥60%)              | `docs/QUALITY-GATES.md` (spec)      |
+| plan.md quality     | ≥80% AND Constitutional Compliance  | `docs/QUALITY-GATES.md` (plan)      |
+| Test coverage       | ratio ≥0.3 on `complete`            | `docs/QUALITY-GATES.md`             |
+| Doctorow Gate       | no placeholders; real evidence      | `docs/QUALITY-GATES.md` (doctorow)  |
 
 ## Feature Granularity
 
-Projects must decompose into **5-15 features**:
-- Each completable in 1-4 hours
-- Each independently testable
-- Each a user-visible capability
-
----
-
-## When to Use SpecFlow
-
-**ALWAYS use for:**
-- Any NEW FEATURE (command, capability, integration)
-- Multi-file changes that add functionality
-
-**DO NOT use for:**
-- Bug fixes
-- Single-file tweaks
-- Config changes
-- Documentation updates
-
----
-
-## Handling Time Pressure
-
-If time-constrained, ASK explicitly:
-
-```
-"SpecFlow requires full spec/plan/tasks for each feature. Options:
-1. Full SpecFlow for 2-3 features instead of 8
-2. Skip SpecFlow and code directly
-3. Hybrid: Full specs for core features only
-
-Which approach would you prefer?"
-```
-
-Never silently skip phases.
-
----
-
-## Extended Documentation
-
-| Topic | File |
-|-------|------|
-| Full SDD workflow | `workflows/sdd-workflow.md` |
-| Interview protocol | `workflows/specify-with-interview.md` |
-| Anti-patterns | `docs/ANTI-PATTERNS.md` |
-| CLI reference | `docs/CLI-REFERENCE.md` |
-| Quality gates | `docs/QUALITY-GATES.md` |
-| pai-deps integration | `docs/PAI-DEPS-INTEGRATION.md` |
-
-## Templates
-
-Available in `templates/`:
-- `constitution.md`, `spec.md`, `plan.md`, `tasks.md`, `verify.md`, `debt-ledger.md`
-
----
+Decompose a project into 5–15 features. Each: completable in 1–4 hours, independently testable, user-visible.
 
 ## References
 
+- CLI command reference — `docs/CLI-REFERENCE.md` (or `specflow --help`)
+- Anti-patterns — `docs/ANTI-PATTERNS.md`
+- Quality gate rubric — `docs/QUALITY-GATES.md`
+- pai-deps integration — `docs/PAI-DEPS-INTEGRATION.md`
+- Directory layout — `docs/LAYOUT.md`
+- Time-pressure protocol — `docs/TIME-PRESSURE.md`
+- Extended lifecycle (HARDEN/REVIEW/APPROVE/inbox/audit) — `workflows/extended-lifecycle.md`
+- SDD workflow + ISC loop — `workflows/sdd-workflow.md`
+- Specify interview protocol — `workflows/specify-with-interview.md`
+- Templates — `templates/` (constitution, spec, plan, tasks, verify, debt-ledger)
+
+## References (external)
+
 - [GitHub spec-kit](https://github.com/github/spec-kit)
-- PAI CONSTITUTION.md - Master principles
+- PAI CONSTITUTION.md (master principles)
