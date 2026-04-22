@@ -1,0 +1,20 @@
+schema: arc/v1
+name: specflow-bundle
+version: 0.2.0
+type: library
+tier: community
+description: Monorepo of spec-driven development tooling — specflow CLI + skill, speckit reference, pai-deps, specflow-ui.
+
+author:
+  name: jcfischer
+  github: jcfischer
+
+artifacts:
+  - path: packages/specflow
+    description: Spec-driven development CLI and skill
+  - path: packages/pai-deps
+    description: PAI dependency tracker
+  - path: packages/specflow-ui
+    description: SpecFlow web UI
+  - path: packages/speckit
+    description: SpecKit reference (upstream mirror)

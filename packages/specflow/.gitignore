@@ -9,5 +9,12 @@ bun.lock
 # Compiled binary
 specflow
 
+# Bun compile cache (hidden)
+.*.bun-build
+
+# Bundle artefacts
+*.tar.gz
+*.tgz
+
 # Test artifacts
 .test-*

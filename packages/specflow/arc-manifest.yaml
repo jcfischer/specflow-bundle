@@ -1,0 +1,55 @@
+schema: arc/v1
+name: specflow
+version: 0.2.0
+type: skill
+tier: community
+description: Spec-driven feature development with gated SPECIFY → PLAN → TASKS → IMPLEMENT workflow and optional HARDEN → REVIEW → APPROVE quality gates.
+
+author:
+  name: jcfischer
+  github: jcfischer
+
+provides:
+  skill:
+    - trigger: "specflow"
+  cli:
+    - command: "bun src/index.ts"
+      name: "specflow"
+
+depends_on:
+  tools:
+    - name: bun
+      version: ">=1.0.0"
+
+capabilities:
+  filesystem:
+    read:
+      - ".specflow/"
+      - ".specify/"
+      - "~/.config/specflow/"
+    write:
+      - ".specflow/"
+      - ".specify/"
+      - "~/.config/specflow/"
+  network: []
+  bash:
+    allowed: true
+    restricted_to:
+      - "bun src/index.ts *"
+      - "specflow *"
+  secrets: []
+
+bundle:
+  exclude:
+    # compiled binary — built locally, not shipped
+    - specflow
+    # bun compile cache — literal MB each, hidden dotfiles arc defaults miss
+    - ".*.bun-build"
+    - "*.bun-build"
+    # dev artefacts
+    - bun.lock
+    - tests
+    - evals
+    # belt & suspenders for archived tarballs left in the tree
+    - "*.tar.gz"
+    - "*.tgz"
