@@ -1,0 +1,50 @@
+schema: arc/v1
+name: specflow-ui
+version: 0.1.0
+type: tool
+tier: community
+description: Web dashboard for SpecFlow progress visualization — ASCII project state rendered to HTML via a Bun-native HTTP server.
+
+author:
+  name: jcfischer
+  github: jcfischer
+
+provides:
+  cli:
+    - command: "bun src/server.ts"
+      name: "specflow-ui"
+
+depends_on:
+  tools:
+    - name: bun
+      version: ">=1.0.0"
+
+capabilities:
+  filesystem:
+    read:
+      - ".specflow/"
+      - ".specify/"
+    write: []
+  network:
+    # HTTP server listens on a local port (default 3000)
+    outbound: []
+    inbound:
+      - port: "configurable"
+  bash:
+    allowed: true
+    restricted_to:
+      - "bun src/server.ts *"
+      - "specflow-ui *"
+  secrets: []
+
+bundle:
+  exclude:
+    # bun compile cache
+    - ".*.bun-build"
+    - "*.bun-build"
+    # dev artefacts
+    - bun.lock
+    - tests
+    # archived tarballs
+    - "*.tar.gz"
+    - "*.tgz"
